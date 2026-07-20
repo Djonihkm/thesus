@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  INSTITUTION
+  JURY
+  STUDENT
+}
+
+enum MemoireStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum FileType {
+  PDF
+  DOCX
+}
+
+enum QuestionType {
+  QCU
+  VRAI_FAUX
+  TEXTE_TROU
+}
+
+enum JuryQuestionCategory {
+  METHODOLOGIE
+  RESULTATS
+  REVUE_LITTERATURE
+  PROBLEMATIQUE
+  PERSPECTIVES
+}
+
+enum StudyLevel {
+  LICENCE
+  MASTER
+  DOCTORAT
+}
+
+enum JuryFunction {
+  ENSEIGNANT
+  PROFESSIONNEL
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model Institution {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  country   String?
+  city      String?
+  website   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+  memoires Memoire[]
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  emailVerified DateTime?
+  passwordHash  String
+  name          String
+  role          Role
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Renseigné quand l'établissement saisi à l'inscription (étudiant/jury) ne
+  // correspond à aucune Institution existante ; à rattacher manuellement plus tard.
+  affiliatedInstitutionName String?
+  country                   String?
+
+  // Étudiant
+  fieldOfStudy  String?
+  studyLevel    StudyLevel?
+  studentNumber String?
+
+  // Jury
+  specialty    String?
+  juryFunction JuryFunction?
+
+  memoiresDeposes Memoire[]           @relation("MemoireStudent")
+  evaluationsJury DefenseEvaluation[]
+  quizAttempts    QuizAttempt[]
+  authTokens      AuthToken[]
+}
+
+model AuthToken {
+  id        String        @id @default(cuid())
+  token     String        @unique
+  type      AuthTokenType
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type])
+}
+
+model Memoire {
+  id            String        @id @default(cuid())
+  title         String
+  fileUrl       String
+  fileType      FileType
+  status        MemoireStatus @default(PENDING)
+  studentId     String
+  student       User          @relation("MemoireStudent", fields: [studentId], references: [id])
+  institutionId String
+  institution   Institution   @relation(fields: [institutionId], references: [id])
+  submittedAt   DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  auditReport      AuditReport?
+  plagiarismReport PlagiarismReport?
+  quiz             Quiz?
+  jurySimulation   JurySimulation?
+  evaluations      DefenseEvaluation[]
+}
+
+model AuditReport {
+  id                  String   @id @default(cuid())
+  memoireId           String   @unique
+  memoire             Memoire  @relation(fields: [memoireId], references: [id])
+  score               Float
+  structureScore      Float
+  coherenceScore      Float
+  writingQualityScore Float
+  recommendations     Json
+  createdAt           DateTime @default(now())
+}
+
+model PlagiarismReport {
+  id              String   @id @default(cuid())
+  memoireId       String   @unique
+  memoire         Memoire  @relation(fields: [memoireId], references: [id])
+  similarityScore Float
+  matches         Json
+  certificateUrl  String?
+  qrCodeUrl       String?
+  createdAt       DateTime @default(now())
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  memoireId String   @unique
+  memoire   Memoire  @relation(fields: [memoireId], references: [id])
+  createdAt DateTime @default(now())
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id            String       @id @default(cuid())
+  quizId        String
+  quiz          Quiz         @relation(fields: [quizId], references: [id])
+  type          QuestionType
+  question      String
+  choices       Json?
+  correctAnswer String
+  order         Int
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id])
+  score       Float
+  answers     Json
+  completedAt DateTime @default(now())
+}
+
+model JurySimulation {
+  id        String   @id @default(cuid())
+  memoireId String   @unique
+  memoire   Memoire  @relation(fields: [memoireId], references: [id])
+  createdAt DateTime @default(now())
+
+  questions JuryQuestion[]
+}
+
+model JuryQuestion {
+  id               String               @id @default(cuid())
+  jurySimulationId String
+  jurySimulation   JurySimulation       @relation(fields: [jurySimulationId], references: [id])
+  category         JuryQuestionCategory
+  question         String
+  order            Int
+}
+
+model DefenseEvaluation {
+  id        String   @id @default(cuid())
+  memoireId String
+  memoire   Memoire  @relation(fields: [memoireId], references: [id])
+  juryId    String
+  jury      User     @relation(fields: [juryId], references: [id])
+  grade     Float
+  criteria  Json
+  comments  String?
+  createdAt DateTime @default(now())
+}
