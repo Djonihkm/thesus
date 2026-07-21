@@ -34,11 +34,11 @@ const modules = [
 
 export function ModulesSection() {
   return (
-    <section id="modules" className="bg-surface-dark">
+    <section id="services" className="bg-surface-dark">
       <div className="mx-auto max-w-6xl px-6 py-24">
         <div className="max-w-xl">
           <span className="text-sm font-medium tracking-wide text-accent">
-            Les modules
+            Les services de Thesus
           </span>
           <h2 className="mt-4 text-3xl font-medium tracking-[-0.01em] text-paper">
             Quatre regards sur un même mémoire

@@ -1,7 +1,10 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/Button";
+import { auth } from "@/lib/auth";
 
-export function Hero() {
+
+export async function Hero() {
+  const session = await auth();
   return (
     <section className="bg-surface-light">
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 pt-12 pb-24 sm:pt-16 sm:pb-32 lg:grid-cols-[3fr_2fr] lg:gap-16">
@@ -18,11 +21,19 @@ export function Hero() {
             un accompagnement complet jusqu&apos;à la soutenance.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row">
-            <Button href="/deposer" tone="light" variant="primary">
-              Déposer mon mémoire
-            </Button>
-            <Button href="#modules" tone="light" variant="outline">
-              Découvrir les modules
+            {
+              session?.user ? (
+                <Button href="/dashboard/etudiant/memoires" tone="light" variant="primary">
+                  Déposer mon mémoire
+                </Button>
+              ) : (
+                <Button href="/connexion" tone="light" variant="primary">
+                  Connexion
+                </Button>
+              )
+            }
+            <Button href="#services" tone="light" variant="outline">
+              Découvrir les services
             </Button>
           </div>
         </div>

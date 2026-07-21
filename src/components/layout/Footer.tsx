@@ -11,7 +11,7 @@ const columns = [
     ],
   },
   {
-    title: "Établissement",
+    title: "Étudiant",
     links: [
       { label: "Tarifs", href: "/tarifs" },
       { label: "Connexion", href: "/connexion" },

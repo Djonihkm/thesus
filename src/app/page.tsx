@@ -5,8 +5,12 @@ import { ProcessSection } from "@/components/sections/ProcessSection";
 import { ModulesSection } from "@/components/sections/ModulesSection";
 import { RolesSection } from "@/components/sections/RolesSection";
 import { FinalCta } from "@/components/sections/FinalCta";
+import  PricingSection  from "@/components/sections/Tarifs";
+import { auth } from "@/lib/auth";
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+
   return (
     <>
       <Header />
@@ -15,7 +19,8 @@ export default function Home() {
         <ProcessSection />
         <ModulesSection />
         <RolesSection />
-        <FinalCta />
+        <PricingSection />
+        {session?.user ? <></> : <FinalCta />}
       </main>
       <Footer />
     </>

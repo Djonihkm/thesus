@@ -9,6 +9,9 @@ import {
   Building2,
   BarChart3,
   Settings,
+  BookOpen,
+  TrendingUp,
+  UserCircle, 
   type LucideIcon,
 } from "lucide-react";
 import { Role } from "@prisma/client";
@@ -20,10 +23,31 @@ export interface NavItem {
 }
 
 const STUDENT_NAV: NavItem[] = [
-  { label: "Tableau de bord", href: "/dashboard/etudiant", icon: LayoutDashboard },
-  { label: "Evaluation", href: "/dashboard/etudiant/evaluation", icon: FileText },
-  { label: "Progression", href: "/dashboard/etudiant/progression", icon: ClipboardCheck },
-  { label: "Mon compte", href: "/dashboard/etudiant/mon-compte", icon: ShieldCheck },
+  {
+    label: "Tableau de bord",
+    href: "/dashboard/etudiant",
+    icon: LayoutDashboard,
+  },
+  {
+    label: "Mes mémoires",
+    href: "/dashboard/etudiant/memoires",
+    icon: BookOpen,
+  },
+  {
+    label: "Évaluation",
+    href: "/dashboard/etudiant/evaluation",
+    icon: ClipboardCheck,
+  },
+  {
+    label: "Progression",
+    href: "/dashboard/etudiant/progression",
+    icon: TrendingUp,
+  },
+  {
+    label: "Mon compte",
+    href: "/dashboard/etudiant/mon-compte",
+    icon: UserCircle,
+  },
 ];
 
 const JURY_NAV: NavItem[] = [

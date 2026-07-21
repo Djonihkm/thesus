@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { auth } from "@/lib/auth";
 
-export function Header() {
+export async function Header() {
+  const session = await auth();
+
   return (
     <header className="sticky top-0 z-50 border-b border-ink/[.06] bg-surface-light/90 backdrop-blur">
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6">
@@ -10,24 +13,39 @@ export function Header() {
         </Link>
 
         <nav className="hidden items-center gap-10 md:flex">
-          <a href="#modules" className="text-sm text-ink-muted transition-colors hover:text-ink">
+          <a
+            href="#modules"
+            className="text-sm text-ink-muted transition-colors hover:text-ink"
+          >
             Services
           </a>
-          <Link href="/tarifs" className="text-sm text-ink-muted transition-colors hover:text-ink">
+
+          <Link
+            href="#tarifs"
+            className="text-sm text-ink-muted transition-colors hover:text-ink"
+          >
             Tarifs
           </Link>
         </nav>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/connexion"
-            className="hidden text-sm text-ink-muted transition-colors hover:text-ink sm:block"
-          >
-            Connexion
-          </Link>
-          <Button href="/inscription" tone="light" variant="primary" className="px-5 py-2.5 text-sm">
-            Créer un compte
-          </Button>
+          {session?.user ? (
+            <>
+              <span className="text-sm">
+                {session.user.name}
+              </span>
+
+              <Link href="/dashboard">Tableau de bord</Link>
+            </>
+          ) : (
+            <>
+              <Link href="/connexion">Connexion</Link>
+
+              <Button href="/inscription">
+                Créer un compte
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>
