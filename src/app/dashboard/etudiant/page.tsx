@@ -1,28 +1,55 @@
+// src/app/dashboard/etudiant/page.tsx
 import { requireRole } from "@/lib/auth-guard";
-import { SignOutButton } from "@/components/auth/SignOutButton";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { ActionCard } from "@/components/dashboard/ActionCard";
+import { FileText, ShieldCheck, ListChecks, Users } from "lucide-react";
 
 export default async function EtudiantDashboardPage() {
   const user = await requireRole("STUDENT");
 
   return (
-    <main className="flex min-h-screen flex-col bg-surface-light">
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-16">
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <span className="text-sm font-medium tracking-wide text-accent">
-              Espace étudiant
-            </span>
-            <h1 className="mt-4 text-3xl font-medium tracking-[-0.01em] text-ink">
-              Bonjour {user.name}
-            </h1>
-            <p className="mt-3 max-w-xl leading-relaxed text-ink-muted">
-              Le dépôt de votre mémoire, votre audit, votre rapport anti-plagiat et
-              votre préparation au jury arriveront bientôt dans cet espace.
-            </p>
-          </div>
-          <SignOutButton />
-        </div>
+    <DashboardShell
+      role="STUDENT"
+      userName={user.name}
+      institutionName={user.institution?.name}
+    >
+      <DashboardHeader
+        eyebrow="Espace étudiant"
+        title={`Bonjour ${user.name}`}
+        description="Déposez votre mémoire pour débloquer l'audit, l'anti-plagiat, le quiz et la préparation au jury."
+      />
+
+      <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <ActionCard
+          icon={<FileText size={18} />}
+          title="Audit de mémoire"
+          description="Analyse de structure, cohérence et qualité rédactionnelle."
+          status="locked"
+          href="/dashboard/etudiant/audit"
+        />
+        <ActionCard
+          icon={<ShieldCheck size={18} />}
+          title="Anti-plagiat"
+          description="Comparaison à une base de publications et certificat officiel."
+          status="locked"
+          href="/dashboard/etudiant/plagiat"
+        />
+        <ActionCard
+          icon={<ListChecks size={18} />}
+          title="Quiz personnalisé"
+          description="Questions générées à partir du contenu de votre mémoire."
+          status="locked"
+          href="/dashboard/etudiant/quiz"
+        />
+        <ActionCard
+          icon={<Users size={18} />}
+          title="Simulation de jury"
+          description="Entraînez-vous avec des questions de soutenance ciblées."
+          status="locked"
+          href="/dashboard/etudiant/jury"
+        />
       </div>
-    </main>
+    </DashboardShell>
   );
 }

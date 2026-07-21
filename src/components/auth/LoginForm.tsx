@@ -48,7 +48,7 @@ export function LoginForm() {
         type="submit"
         tone="light"
         variant="primary"
-        className="w-full"
+        className="w-full cursor-pointer"
         disabled={isPending}
       >
         {isPending ? "Connexion…" : "Se connecter"}
