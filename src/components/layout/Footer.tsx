@@ -32,7 +32,8 @@ export function Footer() {
           <div>
             <span className="text-lg font-medium text-paper">Thesus</span>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-paper-muted">
-              Le fil d&apos;Ariane académique, du dépôt du mémoire à la soutenance.
+              Le fil d&apos;Ariane académique, du dépôt du mémoire à la
+              soutenance.
             </p>
           </div>
 
@@ -54,9 +55,32 @@ export function Footer() {
             </div>
           ))}
         </div>
+        <div className="mt-16 flex flex-col items-center justify-between gap-6 border-t border-border-dark pt-8 sm:flex-row">
+          <p className="text-sm text-paper-muted">
+            © {new Date().getFullYear()} Thesus. Tous droits réservés.
+          </p>
 
-        <div className="mt-16 border-t border-border-dark pt-8 text-sm text-paper-muted">
-          © {new Date().getFullYear()} Thesus. Tous droits réservés.
+          <nav>
+            <ul className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
+              <li>
+                <Link
+                  href="/mentions-legales"
+                  className="text-sm text-paper-muted transition-colors hover:text-paper"
+                >
+                  Mentions légales
+                </Link>
+              </li>
+
+              <li>
+                <Link
+                  href="/politique-de-confidentialite"
+                  className="text-sm text-paper-muted transition-colors hover:text-paper"
+                >
+                  Politique de confidentialité
+                </Link>
+              </li>
+            </ul>
+          </nav>
         </div>
       </div>
     </footer>
