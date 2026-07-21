@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Role } from "@prisma/client";
 import { getNavForRole, getRoleLabel } from "@/lib/dashboard-nav";
+import { isNavItemActive } from "@/lib/dashboard-nav";
 
 interface SidebarProps {
   role: Role;
@@ -16,10 +17,10 @@ export function Sidebar({ role }: SidebarProps) {
   const roleLabel = getRoleLabel(role);
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-border-dark/10 bg-surface-light px-5 py-8 md:flex">
+    <aside className="hidden h-full w-64 shrink-0 flex-col overflow-y-auto border-r border-border-dark/10 bg-surface-light px-5 py-8 md:flex">
       <div className="px-2">
         <span className="text-lg font-medium tracking-[-0.01em] text-ink">
-          Thesus
+          <Link href="/"> Thesus </Link> 
         </span>
         <p className="mt-1 text-xs font-medium tracking-wide text-ink-muted">
           {roleLabel}
@@ -28,9 +29,7 @@ export function Sidebar({ role }: SidebarProps) {
 
       <nav className="mt-10 flex flex-1 flex-col gap-1">
         {navItems.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== pathname && pathname.startsWith(`${item.href}/`));
+          const isActive = isNavItemActive(pathname, item.href);
           const Icon = item.icon;
 
           return (

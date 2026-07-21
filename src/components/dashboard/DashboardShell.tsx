@@ -20,15 +20,16 @@ export function DashboardShell({
   children,
 }: DashboardShellProps) {
   return (
-    <div className="flex min-h-screen bg-surface-light">
+    <div className="flex h-screen overflow-hidden bg-surface-light">
       <Sidebar role={role} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
+          role={role}
           userName={userName}
           institutionName={institutionName}
           actions={topbarActions}
         />
-        <main className="flex-1 px-6 py-10 md:px-10 md:py-14">
+        <main className="flex-1 overflow-y-auto px-6 py-10 md:px-10 md:py-14">
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>

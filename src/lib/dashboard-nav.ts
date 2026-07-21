@@ -21,11 +21,9 @@ export interface NavItem {
 
 const STUDENT_NAV: NavItem[] = [
   { label: "Tableau de bord", href: "/dashboard/etudiant", icon: LayoutDashboard },
-  { label: "Mon mémoire", href: "/dashboard/etudiant/memoire", icon: FileText },
-  { label: "Audit", href: "/dashboard/etudiant/audit", icon: ClipboardCheck },
-  { label: "Anti-plagiat", href: "/dashboard/etudiant/plagiat", icon: ShieldCheck },
-  { label: "Quiz", href: "/dashboard/etudiant/quiz", icon: ListChecks },
-  { label: "Simulation jury", href: "/dashboard/etudiant/jury", icon: Users },
+  { label: "Evaluation", href: "/dashboard/etudiant/evaluation", icon: FileText },
+  { label: "Progression", href: "/dashboard/etudiant/progression", icon: ClipboardCheck },
+  { label: "Mon compte", href: "/dashboard/etudiant/mon-compte", icon: ShieldCheck },
 ];
 
 const JURY_NAV: NavItem[] = [
@@ -51,6 +49,16 @@ export function getNavForRole(role: Role): NavItem[] {
     case "INSTITUTION":
       return INSTITUTION_NAV;
   }
+}
+
+//Fonction permettant de savoir si un item du menu est actif ou non, en fonction du pathname actuel et de l'item du menu
+export function isNavItemActive(pathname: string, href: string): boolean {
+  if (pathname === href) return true;
+
+  const isDashboardRoot = /^\/dashboard\/(etudiant|jury|institution)$/.test(href);
+  if (isDashboardRoot) return false;
+
+  return pathname.startsWith(`${href}/`);
 }
 
 export function getRoleLabel(role: Role): string {
