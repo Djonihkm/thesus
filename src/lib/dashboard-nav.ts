@@ -57,11 +57,11 @@ const JURY_NAV: NavItem[] = [
 ];
 
 const INSTITUTION_NAV: NavItem[] = [
-  { label: "Tableau de bord", href: "/dashboard/institution", icon: LayoutDashboard },
-  { label: "Étudiants", href: "/dashboard/institution/etudiants", icon: Users },
-  { label: "Jurys", href: "/dashboard/institution/jurys", icon: Building2 },
-  { label: "Statistiques", href: "/dashboard/institution/stats", icon: BarChart3 },
-  { label: "Paramètres", href: "/dashboard/institution/parametres", icon: Settings },
+  { label: "Tableau de bord", href: "/dashboard/etablissement", icon: LayoutDashboard },
+  { label: "Étudiants", href: "/dashboard/etablissement/etudiants", icon: Users },
+  { label: "Jurys", href: "/dashboard/etablissement/jurys", icon: Building2 },
+  { label: "Statistiques", href: "/dashboard/etablissement/stats", icon: BarChart3 },
+  { label: "Paramètres", href: "/dashboard/etablissement/parametres", icon: Settings },
 ];
 
 export function getNavForRole(role: Role): NavItem[] {
@@ -79,7 +79,7 @@ export function getNavForRole(role: Role): NavItem[] {
 export function isNavItemActive(pathname: string, href: string): boolean {
   if (pathname === href) return true;
 
-  const isDashboardRoot = /^\/dashboard\/(etudiant|jury|institution)$/.test(href);
+  const isDashboardRoot = /^\/dashboard\/(etudiant|jury|etablissement)$/.test(href);
   if (isDashboardRoot) return false;
 
   return pathname.startsWith(`${href}/`);
