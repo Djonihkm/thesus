@@ -42,6 +42,28 @@ async function findMatchingInstitutionId(name: string): Promise<string | null> {
   return match?.id ?? null;
 }
 
+async function resolveInstitutionSelection(
+  institutionIdInput: string,
+  institutionName: string,
+): Promise<{ institutionId?: string; affiliatedInstitutionName?: string; error?: string }> {
+  if (institutionIdInput) {
+    const institution = await prisma.institution.findUnique({
+      where: { id: institutionIdInput },
+      select: { id: true },
+    });
+    if (!institution) {
+      return { error: "L'établissement sélectionné est invalide." };
+    }
+    return { institutionId: institution.id };
+  }
+
+  const matched = await findMatchingInstitutionId(institutionName);
+  if (matched) {
+    return { institutionId: matched };
+  }
+  return { affiliatedInstitutionName: institutionName };
+}
+
 async function createInstitutionForRegistration(input: {
   name: string;
   country: string;
@@ -116,6 +138,7 @@ export async function registerAction(
   if (roleValue === "STUDENT") {
     country = String(formData.get("country") ?? "").trim();
     const institutionName = String(formData.get("institutionName") ?? "").trim();
+    const institutionIdInput = String(formData.get("institutionId") ?? "").trim();
     fieldOfStudy = String(formData.get("fieldOfStudy") ?? "").trim();
     const studyLevelValue = formData.get("studyLevel");
     studentNumber = String(formData.get("studentNumber") ?? "").trim() || undefined;
@@ -126,14 +149,13 @@ export async function registerAction(
     if (!isStudyLevel(studyLevelValue)) return { error: "Choisissez votre niveau d'étude." };
     studyLevel = studyLevelValue;
 
-    const matched = await findMatchingInstitutionId(institutionName);
-    if (matched) {
-      institutionId = matched;
-    } else {
-      affiliatedInstitutionName = institutionName;
-    }
+    const resolution = await resolveInstitutionSelection(institutionIdInput, institutionName);
+    if (resolution.error) return { error: resolution.error };
+    institutionId = resolution.institutionId;
+    affiliatedInstitutionName = resolution.affiliatedInstitutionName;
   } else if (roleValue === "JURY") {
     const institutionName = String(formData.get("institutionName") ?? "").trim();
+    const institutionIdInput = String(formData.get("institutionId") ?? "").trim();
     specialty = String(formData.get("specialty") ?? "").trim();
     const juryFunctionValue = formData.get("juryFunction");
 
@@ -142,12 +164,10 @@ export async function registerAction(
     if (!isJuryFunction(juryFunctionValue)) return { error: "Choisissez votre fonction." };
     juryFunction = juryFunctionValue;
 
-    const matched = await findMatchingInstitutionId(institutionName);
-    if (matched) {
-      institutionId = matched;
-    } else {
-      affiliatedInstitutionName = institutionName;
-    }
+    const resolution = await resolveInstitutionSelection(institutionIdInput, institutionName);
+    if (resolution.error) return { error: resolution.error };
+    institutionId = resolution.institutionId;
+    affiliatedInstitutionName = resolution.affiliatedInstitutionName;
   } else {
     const institutionName = String(formData.get("institutionName") ?? "").trim();
     const institutionCountry = String(formData.get("institutionCountry") ?? "").trim();
@@ -192,7 +212,8 @@ export async function registerAction(
 
   try {
     await sendVerificationEmail(user.email, user.name, token);
-  } catch {
+  } catch (error) {
+    console.error("Échec de l'envoi de l'email de vérification :", error);
     return {
       error:
         "Votre compte a été créé, mais l'email de confirmation n'a pas pu être envoyé. Contactez-nous pour activer votre compte.",
@@ -265,7 +286,8 @@ export async function requestPasswordResetAction(
 
   try {
     await sendPasswordResetEmail(user.email, user.name, token);
-  } catch {
+  } catch (error) {
+    console.error("Échec de l'envoi de l'email de réinitialisation :", error);
     return genericSuccess;
   }
 

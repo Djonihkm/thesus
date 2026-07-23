@@ -1,8 +1,22 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Solution temporaire pour la phase de dev/test : envoi via un compte Gmail personnel
+// en SMTP. Gmail limite fortement le volume et la délivrabilité (spam probable en
+// production) — à remplacer par un service transactionnel (Resend ou équivalent) avec
+// domaine vérifié avant tout lancement public.
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.GMAIL_USER,
+    // Google affiche le mot de passe d'application en 4 groupes séparés par des
+    // espaces ; ces espaces ne font pas partie de la valeur réelle attendue par le SMTP.
+    pass: process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, ""),
+  },
+});
 
-const FROM = "Thesus <onboarding@resend.dev>";
+const FROM = `Thesus <${process.env.GMAIL_USER}>`;
 
 function getAppUrl(): string {
   return process.env.APP_URL ?? "http://localhost:3000";
@@ -25,7 +39,7 @@ function emailShell(title: string, bodyHtml: string, ctaLabel: string, ctaUrl: s
 export async function sendVerificationEmail(to: string, name: string, token: string) {
   const url = `${getAppUrl()}/verifier-email?token=${token}`;
 
-  await resend.emails.send({
+  await transporter.sendMail({
     from: FROM,
     to,
     subject: "Confirmez votre adresse email — Thesus",
@@ -42,7 +56,7 @@ export async function sendVerificationEmail(to: string, name: string, token: str
 export async function sendPasswordResetEmail(to: string, name: string, token: string) {
   const url = `${getAppUrl()}/reinitialiser-mot-de-passe?token=${token}`;
 
-  await resend.emails.send({
+  await transporter.sendMail({
     from: FROM,
     to,
     subject: "Réinitialisez votre mot de passe — Thesus",

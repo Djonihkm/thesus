@@ -121,6 +121,8 @@ model Memoire {
   fileUrl       String
   fileType      FileType
   status        MemoireStatus @default(PENDING)
+  extractedText String?       @db.Text
+  errorMessage  String?
   studentId     String
   student       User          @relation("MemoireStudent", fields: [studentId], references: [id])
   institutionId String
