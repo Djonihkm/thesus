@@ -15,6 +15,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
     signIn: "/connexion",
   },
+  cookies: {
+    sessionToken: {
+      name: "thesus.session-token",
+      options: { httpOnly: true, sameSite: "lax", path: "/" },
+    },
+  },
   providers: [
     Credentials({
       credentials: {
