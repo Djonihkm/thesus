@@ -3,12 +3,18 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { RegisterForm } from "@/components/auth/RegisterForm";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
   title: "Créer un compte — Thesus",
 };
 
-export default function InscriptionPage() {
+export default async function InscriptionPage() {
+  const institutions = await prisma.institution.findMany({
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
   return (
     <>
       <Header />
@@ -19,7 +25,7 @@ export default function InscriptionPage() {
             title="Rejoignez Thesus"
             subtitle="Un compte par établissement, jury ou étudiant, pour accéder à l'espace qui vous correspond."
           >
-            <RegisterForm />
+            <RegisterForm institutions={institutions} />
           </AuthCard>
         </div>
       </main>

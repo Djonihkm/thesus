@@ -8,6 +8,9 @@ import { FormError } from "@/components/auth/FormError";
 import { RoleSelector } from "@/components/auth/RoleSelector";
 import { TabSelect } from "@/components/auth/TabSelect";
 import { Stepper } from "@/components/auth/Stepper";
+import { InstitutionCombobox } from "@/components/auth/InstitutionCombobox";
+import { FieldOfStudyCombobox } from "@/components/auth/FieldOfStudyCombobox";
+import { FIELDS_OF_STUDY } from "@/lib/fields-of-study";
 import { registerAction, type AuthFormState } from "@/lib/actions/auth";
 import {
   isValidEmail,
@@ -37,7 +40,11 @@ type StepOneValues = {
   confirmPassword: string;
 };
 
-export function RegisterForm() {
+export function RegisterForm({
+  institutions,
+}: {
+  institutions: { id: string; name: string }[];
+}) {
   const [state, formAction, isPending] = useActionState(registerAction, initialState);
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -161,8 +168,8 @@ export function RegisterForm() {
           {role === "STUDENT" ? (
             <>
               <FormField label="Pays" name="country" type="text" autoComplete="country-name" required />
-              <FormField label="Établissement" name="institutionName" type="text" required />
-              <FormField label="Filière" name="fieldOfStudy" type="text" required />
+              <InstitutionCombobox label="Établissement" institutions={institutions} />
+              <FieldOfStudyCombobox label="Filière" options={FIELDS_OF_STUDY} />
               <div className="flex flex-col gap-2">
                 <span className="text-sm text-ink-muted">Niveau d&apos;étude</span>
                 <TabSelect
@@ -183,12 +190,7 @@ export function RegisterForm() {
 
           {role === "JURY" ? (
             <>
-              <FormField
-                label="Établissement de rattachement"
-                name="institutionName"
-                type="text"
-                required
-              />
+              <InstitutionCombobox label="Établissement de rattachement" institutions={institutions} />
               <FormField label="Spécialité / domaine d'expertise" name="specialty" type="text" required />
               <div className="flex flex-col gap-2">
                 <span className="text-sm text-ink-muted">Fonction</span>
