@@ -28,6 +28,7 @@ export default async function MemoireDetailPage({
     where: { id },
     include: {
       auditReport: true,
+      plagiarismReport: true,
       quiz: { include: { _count: { select: { questions: true } } } },
       jurySimulation: { include: { _count: { select: { questions: true } } } },
     },
@@ -51,6 +52,22 @@ export default async function MemoireDetailPage({
 
   const auditSummary = memoire.auditReport
     ? `${memoire.auditReport.score.toFixed(1)}/20`
+    : undefined;
+
+  const plagiarismStatus: ServiceStatus = memoire.plagiarismReport
+    ? "done"
+    : memoire.status === "FAILED"
+      ? "alert"
+      : memoire.status === "PROCESSING"
+        ? "in_progress"
+        : "locked";
+
+  const plagiarismHref = memoire.plagiarismReport
+    ? `/dashboard/etudiant/memoires/${memoire.id}/plagiat`
+    : undefined;
+
+  const plagiarismSummary = memoire.plagiarismReport
+    ? `${memoire.plagiarismReport.similarityScore}% de similarité max.`
     : undefined;
 
   const isReady = memoire.status === "COMPLETED";
@@ -122,9 +139,11 @@ export default async function MemoireDetailPage({
         <ActionCard
           icon={<ShieldCheck size={18} />}
           title="Anti-plagiat"
-          description="Comparaison à une base de publications et certificat officiel."
-          status="locked"
-          summary="Disponible dans une prochaine mise à jour"
+          description="Comparaison sémantique et par empreintes aux mémoires déjà déposés sur la plateforme."
+          status={plagiarismStatus}
+          summary={plagiarismSummary}
+          href={plagiarismHref}
+          ctaLabel="Voir le rapport"
         />
         <ActionCard
           icon={<ListChecks size={18} />}

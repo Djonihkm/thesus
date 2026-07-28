@@ -123,6 +123,11 @@ model Memoire {
   status        MemoireStatus @default(PENDING)
   extractedText String?       @db.Text
   errorMessage  String?
+
+  // Signature de contenu utilisée pour la détection anti-plagiat : recalculée à chaque
+  // traitement, et réutilisée comme corpus de comparaison pour les mémoires suivants.
+  contentEmbedding    Json?
+  contentFingerprints Json?
   studentId     String
   student       User          @relation("MemoireStudent", fields: [studentId], references: [id])
   institutionId String

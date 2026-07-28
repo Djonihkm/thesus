@@ -13,6 +13,7 @@
     "@google/genai": "^2.13.0",
     "@prisma/client": "^6.19.3",
     "@vercel/blob": "^2.6.1",
+    "@xenova/transformers": "^2.17.2",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.25.0",
     "mammoth": "^1.12.0",

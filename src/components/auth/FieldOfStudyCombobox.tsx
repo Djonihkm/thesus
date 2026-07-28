@@ -5,12 +5,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 interface FieldOfStudyComboboxProps {
   label: string;
   options: string[];
+  defaultValue?: string;
 }
 
 const MAX_SUGGESTIONS = 8;
 
-export function FieldOfStudyCombobox({ label, options }: FieldOfStudyComboboxProps) {
-  const [value, setValue] = useState("");
+export function FieldOfStudyCombobox({ label, options, defaultValue = "" }: FieldOfStudyComboboxProps) {
+  const [value, setValue] = useState(defaultValue);
   const [isOpen, setIsOpen] = useState(false);
   const [freeText, setFreeText] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);

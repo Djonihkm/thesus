@@ -5,6 +5,7 @@ import mammoth from "mammoth";
 import { FileType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateAuditReport } from "@/lib/audit";
+import { runPlagiarismCheck } from "@/lib/plagiarism";
 
 async function fetchBlobBuffer(fileUrl: string): Promise<Buffer> {
   const result = await get(fileUrl, { access: "private" });
@@ -74,6 +75,13 @@ export async function processMemoire(memoireId: string): Promise<void> {
         recommendations: auditResult.recommendations as unknown as Prisma.InputJsonValue,
       },
     });
+
+    try {
+      await runPlagiarismCheck(memoireId, extractedText);
+    } catch {
+      // La vérification anti-plagiat est secondaire : un échec ne doit pas faire
+      // basculer tout le mémoire en FAILED alors que l'audit, lui, a réussi.
+    }
 
     await prisma.memoire.update({
       where: { id: memoireId },

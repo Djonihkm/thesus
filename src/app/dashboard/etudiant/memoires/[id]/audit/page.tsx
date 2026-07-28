@@ -4,6 +4,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { ScoreBar } from "@/components/dashboard/ScoreBar";
 import type { AuditRecommendation } from "@/lib/audit";
 
 const CATEGORY_LABELS: Record<AuditRecommendation["category"], string> = {
@@ -12,21 +13,6 @@ const CATEGORY_LABELS: Record<AuditRecommendation["category"], string> = {
   writing_quality: "Qualité rédactionnelle",
   general: "Général",
 };
-
-function ScoreBar({ label, value }: { label: string; value: number }) {
-  const percentage = Math.max(0, Math.min(100, (value / 20) * 100));
-  return (
-    <div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-sm text-ink-muted">{label}</span>
-        <span className="text-sm font-medium text-ink">{value.toFixed(1)}/20</span>
-      </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-neutral">
-        <div className="h-full rounded-full bg-accent" style={{ width: `${percentage}%` }} />
-      </div>
-    </div>
-  );
-}
 
 export default async function AuditReportPage({
   params,
