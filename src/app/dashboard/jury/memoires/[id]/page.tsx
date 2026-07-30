@@ -1,0 +1,94 @@
+// src/app/dashboard/jury/memoires/[id]/page.tsx
+import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { requireRole } from "@/lib/auth-guard";
+import { prisma } from "@/lib/prisma";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { EvaluationForm } from "@/components/dashboard/EvaluationForm";
+import { DocumentViewerModal } from "@/components/dashboard/DocumentViewerModal";
+import type { EvaluationCriterion } from "@/lib/evaluation-criteria";
+
+const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+export default async function JuryMemoireDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const user = await requireRole("JURY");
+
+  const memoire = await prisma.memoire.findUnique({
+    where: { id },
+    include: {
+      student: { select: { name: true } },
+      auditReport: true,
+      evaluations: { where: { juryId: user.id } },
+    },
+  });
+
+  if (!memoire || !user.institutionId || memoire.institutionId !== user.institutionId) {
+    notFound();
+  }
+
+  if (memoire.status !== "COMPLETED") {
+    redirect("/dashboard/jury/memoires");
+  }
+
+  const existingEvaluation = memoire.evaluations[0];
+  const existingCriteria = existingEvaluation?.criteria as unknown as
+    | EvaluationCriterion[]
+    | undefined;
+
+  return (
+    <>
+      <DashboardHeader
+        eyebrow="Évaluation de soutenance"
+        title={memoire.title}
+        description={`${memoire.student.name} · déposé le ${dateFormatter.format(memoire.submittedAt)}`}
+        actions={
+          <DocumentViewerModal
+            documentUrl={`/api/jury/memoires/${memoire.id}/document`}
+            title={memoire.title}
+            fileType={memoire.fileType}
+          />
+        }
+      />
+
+      {memoire.auditReport ? (
+        <div className="mt-8 rounded-2xl border border-border-dark/10 bg-surface-light p-6">
+          <span className="text-sm font-medium tracking-wide text-accent">
+            Rapport d&apos;audit (pour information)
+          </span>
+          <p className="mt-2 text-2xl font-medium tracking-[-0.01em] text-ink">
+            {memoire.auditReport.score.toFixed(1)}/20
+          </p>
+        </div>
+      ) : null}
+
+      <div className="mt-10 rounded-2xl border border-border-dark/10 bg-surface-light p-6">
+        <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
+          {existingEvaluation ? "Modifier votre évaluation" : "Évaluer la soutenance"}
+        </h2>
+        <div className="mt-6">
+          <EvaluationForm
+            memoireId={memoire.id}
+            existingCriteria={existingCriteria}
+            existingComments={existingEvaluation?.comments}
+          />
+        </div>
+      </div>
+
+      <Link
+        href="/dashboard/jury/memoires"
+        className="mt-8 inline-block text-sm font-medium text-accent hover:underline"
+      >
+        ← Retour aux mémoires
+      </Link>
+    </>
+  );
+}

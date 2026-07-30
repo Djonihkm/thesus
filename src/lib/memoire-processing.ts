@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { generateAuditReport } from "@/lib/audit";
 import { runPlagiarismCheck } from "@/lib/plagiarism";
 
-async function fetchBlobBuffer(fileUrl: string): Promise<Buffer> {
+export async function fetchBlobBuffer(fileUrl: string): Promise<Buffer> {
   const result = await get(fileUrl, { access: "private" });
   if (!result || result.statusCode !== 200) {
     throw new Error("Impossible de récupérer le fichier déposé.");
