@@ -3,7 +3,7 @@ import type { MouseEventHandler, ReactNode } from "react";
 
 type ButtonProps = {
   href?: string;
-  variant?: "primary" | "outline";
+  variant?: "primary" | "outline" | "accent";
   tone?: "light" | "dark";
   className?: string;
   type?: "button" | "submit";
@@ -13,16 +13,18 @@ type ButtonProps = {
 };
 
 const base =
-  "inline-flex items-center justify-center rounded-full px-7 py-3 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex items-center justify-center whitespace-nowrap rounded-full px-7 py-3 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 const styles = {
   light: {
     primary: "bg-ink text-paper hover:bg-ink/85",
     outline: "border border-accent text-ink hover:bg-accent/10",
+    accent: "bg-accent-lime text-ink hover:brightness-95",
   },
   dark: {
     primary: "bg-paper text-ink hover:bg-paper/85",
     outline: "border border-accent text-paper hover:bg-accent/10",
+    accent: "bg-accent-lime text-ink hover:brightness-95",
   },
 } as const;
 

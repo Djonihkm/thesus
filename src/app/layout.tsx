@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import { Poppins, Fraunces } from "next/font/google";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -8,10 +8,20 @@ const poppins = Poppins({
   weight: ["400", "500", "600"],
 });
 
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
   title: "Thesus — le fil d'Ariane de votre mémoire",
   description:
     "Audit de mémoire, anti-plagiat, quiz de préparation et simulation de jury : Thesus accompagne les étudiants du dépôt jusqu'à la soutenance.",
+  icons: {
+    icon: "/fav.png",
+  },
 };
 
 export default function RootLayout({
@@ -20,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className={`${poppins.variable} h-full antialiased`}>
+    <html lang="fr" className={`${poppins.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

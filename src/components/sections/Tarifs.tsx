@@ -47,12 +47,13 @@ export default function PricingSection() {
       <div className="mx-auto max-w-6xl px-6">
 
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-medium uppercase tracking-widest text-accent">
+          <p className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
             Tarifs
           </p>
 
-          <h2 className="mt-4 text-4xl font-semibold tracking-tight text-ink">
-            Un accompagnement adapté à chaque étudiant
+          <h2 className="mt-4 font-serif text-4xl font-normal tracking-[-0.01em] text-ink">
+            Un accompagnement adapté à{" "}
+            <em className="text-accent-dark italic">chaque étudiant</em>
           </h2>
 
           <p className="mt-4 text-ink-muted">
@@ -67,15 +68,15 @@ export default function PricingSection() {
           {plans.map((plan) => (
             <div
               key={plan.name}
-              className={`relative rounded-2xl border p-8 transition ${
+              className={`relative rounded-3xl border p-8 transition hover:-translate-y-1 ${
                 plan.popular
-                  ? "border-accent bg-surface-dark text-white"
-                  : "border-black/[.08] bg-white"
+                  ? "border-ink bg-ink text-paper shadow-xl shadow-ink/20"
+                  : "border-border-neutral bg-surface-light shadow-sm shadow-ink/5 hover:shadow-lg hover:shadow-ink/10"
               }`}
             >
 
               {plan.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-4 py-1 text-xs font-medium text-black">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent-lime px-4 py-1 text-xs font-medium text-ink">
                   Le plus choisi
                 </span>
               )}
@@ -85,7 +86,7 @@ export default function PricingSection() {
               </h3>
 
               <p className={`mt-3 text-sm ${
-                plan.popular ? "text-white/70" : "text-ink-muted"
+                plan.popular ? "text-paper/70" : "text-ink-muted"
               }`}>
                 {plan.description}
               </p>
@@ -99,10 +100,10 @@ export default function PricingSection() {
 
 
               <button
-                className={`mt-8 w-full rounded-xl py-3 text-sm font-medium transition ${
+                className={`mt-8 w-full rounded-full py-3 text-sm font-medium transition ${
                   plan.popular
-                    ? "bg-accent text-black hover:opacity-90"
-                    : "bg-black text-white hover:bg-black/80"
+                    ? "bg-accent-lime text-ink hover:brightness-95"
+                    : "bg-ink text-paper hover:bg-ink/85"
                 }`}
               >
                 Choisir cette offre
@@ -117,11 +118,11 @@ export default function PricingSection() {
                   >
                     <Check
                       size={18}
-                      className="text-accent"
+                      className={plan.popular ? "text-accent-on-dark" : "text-accent-dark"}
                     />
                     <span className={
                       plan.popular
-                        ? "text-white/80"
+                        ? "text-paper/80"
                         : "text-ink-muted"
                     }>
                       {feature}

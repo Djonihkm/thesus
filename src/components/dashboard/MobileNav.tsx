@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -56,10 +57,8 @@ export function MobileNav({ role }: MobileNavProps) {
           <div className="absolute inset-y-0 left-0 flex w-72 max-w-[80%] flex-col bg-surface-light px-5 py-6 shadow-xl">
             <div className="flex items-center justify-between px-2">
               <div>
-                <span className="text-lg font-medium tracking-[-0.01em] text-ink">
-                  Thesus
-                </span>
-                <p className="mt-1 text-xs font-medium tracking-wide text-ink-muted">
+                <Image src="/logo.png" alt="Thesus" width={239} height={133} className="h-7 w-auto" />
+                <p className="mt-2 text-xs font-medium tracking-wide text-ink-muted">
                   {roleLabel}
                 </p>
               </div>

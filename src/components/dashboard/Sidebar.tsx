@@ -1,6 +1,7 @@
 // src/components/dashboard/Sidebar.tsx
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Role } from "@prisma/client";
@@ -19,10 +20,10 @@ export function Sidebar({ role }: SidebarProps) {
   return (
     <aside className="hidden h-full w-64 shrink-0 flex-col overflow-y-auto border-r border-border-dark/10 bg-surface-light px-5 py-8 md:flex">
       <div className="px-2">
-        <span className="text-lg font-medium tracking-[-0.01em] text-ink">
-          <Link href="/"> Thesus </Link> 
-        </span>
-        <p className="mt-1 text-xs font-medium tracking-wide text-ink-muted">
+        <Link href="/" className="inline-flex">
+          <Image src="/logo.png" alt="Thesus" width={239} height={133} className="h-7 w-auto" />
+        </Link>
+        <p className="mt-2 text-xs font-medium tracking-wide text-ink-muted">
           {roleLabel}
         </p>
       </div>

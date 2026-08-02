@@ -24,18 +24,18 @@ export function ProcessSection() {
     <section className="bg-surface-neutral">
       <div className="mx-auto max-w-6xl px-6 py-24">
         <div className="max-w-xl">
-          <span className="text-sm font-medium tracking-wide text-accent">
+          <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
             Le parcours
           </span>
-          <h2 className="mt-4 text-3xl font-medium tracking-[-0.01em] text-ink">
-            Un seul dépôt, une soutenance préparée
+          <h2 className="mt-4 font-serif text-3xl font-normal tracking-[-0.01em] text-ink">
+            Un seul dépôt, une <em className="text-accent-dark italic">soutenance préparée</em>
           </h2>
         </div>
 
         <div className="mt-16 grid gap-12 sm:grid-cols-3">
           {steps.map((step) => (
             <div key={step.index} className="border-t border-ink/10 pt-6">
-              <span className="text-sm text-accent">{step.index}</span>
+              <span className="font-serif text-sm text-accent-dark">{step.index}</span>
               <h3 className="mt-3 text-xl font-medium text-ink">{step.title}</h3>
               <p className="mt-2 leading-relaxed text-ink-muted">
                 {step.description}

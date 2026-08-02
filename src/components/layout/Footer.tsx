@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const columns = [
@@ -30,7 +31,14 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-6 py-16">
         <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <span className="text-lg font-medium text-paper">Thesus</span>
+            <Image
+              src="/logo-white.png"
+              alt="Thesus"
+              width={240}
+              height={133}
+              loading="eager"
+              className="h-8 w-auto"
+            />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-paper-muted">
               Le fil d&apos;Ariane académique, du dépôt du mémoire à la
               soutenance.

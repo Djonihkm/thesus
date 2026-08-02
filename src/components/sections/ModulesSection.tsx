@@ -34,26 +34,28 @@ const modules = [
 
 export function ModulesSection() {
   return (
-    <section id="services" className="bg-surface-dark">
+    <section id="services" className="bg-surface-light">
       <div className="mx-auto max-w-6xl px-6 py-24">
         <div className="max-w-xl">
-          <span className="text-sm font-medium tracking-wide text-accent">
+          <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
             Les services de Thesus
           </span>
-          <h2 className="mt-4 text-3xl font-medium tracking-[-0.01em] text-paper">
-            Quatre regards sur un même mémoire
+          <h2 className="mt-4 font-serif text-3xl font-normal tracking-[-0.01em] text-ink">
+            Quatre regards sur un <em className="text-accent-dark italic">même mémoire</em>
           </h2>
         </div>
 
-        <div className="mt-16 grid border-t border-l border-border-dark sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {modules.map(({ icon: Icon, title, description }) => (
             <div
               key={title}
-              className="border-r border-b border-border-dark px-6 py-10"
+              className="rounded-2xl border border-border-neutral bg-surface-neutral px-6 py-8 shadow-sm shadow-ink/5 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10"
             >
-              <Icon className="h-6 w-6 text-accent" />
-              <h3 className="mt-6 text-lg font-medium text-paper">{title}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-paper-muted">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/10">
+                <Icon className="h-5 w-5 text-accent-dark" />
+              </div>
+              <h3 className="mt-6 text-lg font-medium text-ink">{title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-ink-muted">
                 {description}
               </p>
             </div>
