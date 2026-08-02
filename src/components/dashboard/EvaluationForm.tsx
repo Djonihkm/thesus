@@ -71,7 +71,7 @@ export function EvaluationForm({
       <div className="rounded-xl border border-border-dark/10 bg-surface-neutral px-5 py-4">
         <div className="flex items-baseline justify-between">
           <span className="text-sm text-ink-muted">Note globale (moyenne des critères)</span>
-          <span className="text-lg font-semibold text-ink">{average.toFixed(1)}/20</span>
+          <span className="font-serif text-lg font-normal text-ink">{average.toFixed(1)}/20</span>
         </div>
       </div>
 

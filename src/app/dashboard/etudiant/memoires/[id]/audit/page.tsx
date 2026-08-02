@@ -48,8 +48,8 @@ export default async function AuditReportPage({
 
       <div className="mt-10 rounded-2xl border border-border-dark/10 bg-surface-light p-8">
         <div className="flex items-baseline justify-between">
-          <span className="text-sm font-medium tracking-wide text-accent">Note globale</span>
-          <span className="text-3xl font-medium tracking-[-0.01em] text-ink">
+          <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">Note globale</span>
+          <span className="font-serif text-3xl font-normal tracking-[-0.01em] text-ink">
             {report.score.toFixed(1)}/20
           </span>
         </div>

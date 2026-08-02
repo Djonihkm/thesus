@@ -21,7 +21,7 @@ const STYLES: Record<
   },
   FAILED: {
     label: "Échec",
-    className: "bg-red-50 text-red-700",
+    className: "bg-flag-soft text-flag",
   },
 };
 

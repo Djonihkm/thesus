@@ -17,10 +17,10 @@ export function DashboardHeader({
   return (
     <div className="flex items-start justify-between gap-6">
       <div>
-        <span className="text-sm font-medium tracking-wide text-accent">
+        <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
           {eyebrow}
         </span>
-        <h1 className="mt-4 text-3xl font-medium tracking-[-0.01em] text-ink">
+        <h1 className="mt-4 font-serif text-3xl font-normal tracking-[-0.01em] text-ink">
           {title}
         </h1>
         <p className="mt-3 max-w-xl leading-relaxed text-ink-muted">

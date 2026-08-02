@@ -20,7 +20,7 @@ const STYLES: Record<ServiceStatus, { label: string; className: string }> = {
   },
   alert: {
     label: "À vérifier",
-    className: "bg-red-50 text-red-700",
+    className: "bg-flag-soft text-flag",
   },
 };
 

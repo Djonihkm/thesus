@@ -59,7 +59,7 @@ export function DocumentViewerModal({ documentUrl, title, fileType }: DocumentVi
             {fileType === "PDF" ? (
               <PdfViewer fileUrl={documentUrl} />
             ) : (
-              <iframe src={documentUrl} title={title} className="w-full flex-1 bg-white" />
+              <iframe src={documentUrl} title={title} className="w-full flex-1 bg-surface-light" />
             )}
           </div>
         </div>

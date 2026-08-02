@@ -7,7 +7,6 @@ const PADDING_X = 8;
 const PADDING_TOP = 20;
 const PADDING_BOTTOM = 12;
 const END_LABEL_WIDTH = 44;
-const BASELINE_STROKE = "rgba(42, 42, 42, 0.12)";
 
 export interface QuizAttemptPoint {
   score: number;
@@ -51,7 +50,8 @@ export function QuizTrendChart({ attempts }: { attempts: QuizAttemptPoint[] }) {
         y1={baselineY}
         x2={WIDTH - END_LABEL_WIDTH}
         y2={baselineY}
-        stroke={BASELINE_STROKE}
+        stroke="var(--color-border-dark)"
+        strokeOpacity={0.12}
         strokeWidth={1}
       />
       <path d={areaPath} fill="var(--color-accent)" opacity={0.1} stroke="none" />

@@ -27,30 +27,32 @@ export function ActionCard({
 
   const content = (
     <div
-      className={`group flex h-full flex-col justify-between rounded-2xl border border-border-dark/10 bg-surface-light p-6 transition ${
-        isLocked ? "opacity-50" : "hover:border-accent/40 hover:shadow-sm"
+      className={`group flex h-full flex-col justify-between rounded-2xl border bg-surface-light p-6 shadow-sm shadow-ink/5 transition ${
+        isLocked
+          ? "border-border-neutral opacity-50"
+          : "border-border-neutral hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10"
       }`}
     >
       <div>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-neutral text-ink">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/10 text-accent-dark">
             {icon}
           </div>
           <StatusBadge status={status} />
         </div>
-        <h3 className="mt-4 text-lg font-medium tracking-[-0.01em] text-ink">
+        <h3 className="mt-5 text-lg font-medium tracking-[-0.01em] text-ink">
           {title}
         </h3>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
           {description}
         </p>
         {summary && (
-          <p className="mt-3 text-sm font-medium text-ink">{summary}</p>
+          <p className="mt-3 font-serif text-lg font-normal text-accent-dark">{summary}</p>
         )}
       </div>
 
       {!isLocked && href && (
-        <span className="mt-6 inline-flex items-center text-sm font-medium text-accent group-hover:underline">
+        <span className="mt-6 inline-flex items-center text-sm font-medium text-accent-dark group-hover:underline">
           {ctaLabel} →
         </span>
       )}

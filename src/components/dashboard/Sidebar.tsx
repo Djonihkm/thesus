@@ -39,7 +39,7 @@ export function Sidebar({ role }: SidebarProps) {
               href={item.href}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
                 isActive
-                  ? "bg-surface-neutral font-medium text-ink"
+                  ? "bg-accent/10 font-medium text-accent-dark"
                   : "text-ink-muted hover:bg-surface-neutral/60 hover:text-ink"
               }`}
             >

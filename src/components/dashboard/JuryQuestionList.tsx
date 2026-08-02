@@ -72,7 +72,7 @@ export function JuryQuestionList({ memoireId, questions }: JuryQuestionListProps
     <div className="flex flex-col gap-8">
       {grouped.map((group) => (
         <div key={group.category}>
-          <h3 className="text-sm font-medium tracking-wide text-accent">
+          <h3 className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
             {CATEGORY_LABELS[group.category]}
           </h3>
           <div className="mt-3 flex flex-col gap-2">
@@ -86,7 +86,7 @@ export function JuryQuestionList({ memoireId, questions }: JuryQuestionListProps
                   className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
                     isPrepared
                       ? "border-accent/40 bg-accent/5"
-                      : "border-border-dark/10 bg-surface-light hover:border-ink/20"
+                      : "border-border-neutral bg-surface-light hover:border-accent/40"
                   }`}
                 >
                   {isPrepared ? (

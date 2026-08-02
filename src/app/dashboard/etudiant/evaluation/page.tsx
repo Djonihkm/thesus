@@ -62,7 +62,7 @@ export default async function EvaluationPage() {
                   </p>
                 </div>
                 {evaluation ? (
-                  <span className="shrink-0 text-2xl font-medium tracking-[-0.01em] text-ink">
+                  <span className="shrink-0 font-serif text-2xl font-normal tracking-[-0.01em] text-ink">
                     {evaluation.grade.toFixed(1)}/20
                   </span>
                 ) : (

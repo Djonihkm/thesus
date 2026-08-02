@@ -71,10 +71,10 @@ export default async function JuryMemoireDetailPage({
 
       {memoire.auditReport ? (
         <div className="mt-8 rounded-2xl border border-border-dark/10 bg-surface-light p-6">
-          <span className="text-sm font-medium tracking-wide text-accent">
+          <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
             Rapport d&apos;audit (pour information)
           </span>
-          <p className="mt-2 text-2xl font-medium tracking-[-0.01em] text-ink">
+          <p className="mt-2 font-serif text-2xl font-normal tracking-[-0.01em] text-ink">
             {memoire.auditReport.score.toFixed(1)}/20
           </p>
         </div>

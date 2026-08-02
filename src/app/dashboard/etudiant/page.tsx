@@ -8,7 +8,7 @@ import { MemoireCard } from "@/components/dashboard/MemoireCard";
 import { MemoireUploadForm } from "@/components/dashboard/MemoireUploadForm";
 import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 import { Button } from "@/components/ui/Button";
-import { FileText, ShieldCheck, ListChecks, Users } from "lucide-react";
+import { AuditIcon, PlagiarismIcon, QuizIcon, JuryIcon } from "@/components/icons";
 
 const RECENT_MEMOIRES_LIMIT = 3;
 
@@ -80,25 +80,25 @@ export default async function EtudiantDashboardPage() {
         </h2>
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
           <ActionCard
-            icon={<FileText size={18} />}
+            icon={<AuditIcon className="h-5 w-5" />}
             title="Audit de mémoire"
             description="Analyse de structure, cohérence et qualité rédactionnelle."
             status="locked"
           />
           <ActionCard
-            icon={<ShieldCheck size={18} />}
+            icon={<PlagiarismIcon className="h-5 w-5" />}
             title="Anti-plagiat"
             description="Comparaison à une base de publications et certificat officiel."
             status="locked"
           />
           <ActionCard
-            icon={<ListChecks size={18} />}
+            icon={<QuizIcon className="h-5 w-5" />}
             title="Quiz personnalisé"
             description="Questions générées à partir du contenu de votre mémoire."
             status="locked"
           />
           <ActionCard
-            icon={<Users size={18} />}
+            icon={<JuryIcon className="h-5 w-5" />}
             title="Simulation de jury"
             description="Entraînez-vous avec des questions de soutenance ciblées."
             status="locked"

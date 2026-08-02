@@ -43,7 +43,7 @@ export default async function PlagiarismReportPage({
       <div className="mt-10 flex items-center gap-4 rounded-2xl border border-border-dark/10 bg-surface-light p-8">
         <div
           className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-            isClean ? "bg-accent/10 text-accent" : "bg-red-500/10 text-red-600"
+            isClean ? "bg-accent/10 text-accent" : "bg-flag-soft text-flag"
           }`}
         >
           {isClean ? <ShieldCheck size={22} /> : <ShieldAlert size={22} />}
@@ -52,7 +52,7 @@ export default async function PlagiarismReportPage({
           <span className="text-sm font-medium tracking-wide text-ink-muted">
             Similarité maximale détectée
           </span>
-          <p className="mt-1 text-3xl font-medium tracking-[-0.01em] text-ink">
+          <p className="mt-1 font-serif text-3xl font-normal tracking-[-0.01em] text-ink">
             {report.similarityScore}%
           </p>
         </div>

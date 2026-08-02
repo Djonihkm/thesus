@@ -1,6 +1,7 @@
 // src/app/dashboard/etudiant/memoires/[id]/page.tsx
 import { notFound } from "next/navigation";
-import { FileText, ShieldCheck, ListChecks, Users, Loader2, FileEdit } from "lucide-react";
+import { Loader2, FileEdit } from "lucide-react";
+import { AuditIcon, PlagiarismIcon, QuizIcon, JuryIcon } from "@/components/icons";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -128,7 +129,7 @@ export default async function MemoireDetailPage({
 
       <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2">
         <ActionCard
-          icon={<FileText size={18} />}
+          icon={<AuditIcon className="h-5 w-5" />}
           title="Audit de mémoire"
           description="Analyse de structure, cohérence et qualité rédactionnelle."
           status={auditStatus}
@@ -137,7 +138,7 @@ export default async function MemoireDetailPage({
           ctaLabel="Voir le rapport"
         />
         <ActionCard
-          icon={<ShieldCheck size={18} />}
+          icon={<PlagiarismIcon className="h-5 w-5" />}
           title="Anti-plagiat"
           description="Comparaison sémantique et par empreintes aux mémoires déjà déposés sur la plateforme."
           status={plagiarismStatus}
@@ -146,7 +147,7 @@ export default async function MemoireDetailPage({
           ctaLabel="Voir le rapport"
         />
         <ActionCard
-          icon={<ListChecks size={18} />}
+          icon={<QuizIcon className="h-5 w-5" />}
           title="Quiz personnalisé"
           description="Questions générées à partir du contenu de votre mémoire."
           status={quizStatus}
@@ -155,7 +156,7 @@ export default async function MemoireDetailPage({
           ctaLabel={memoire.quiz ? "Voir le quiz" : "Générer mon quiz"}
         />
         <ActionCard
-          icon={<Users size={18} />}
+          icon={<JuryIcon className="h-5 w-5" />}
           title="Simulation de jury"
           description="Entraînez-vous avec des questions de soutenance ciblées."
           status={juryStatus}

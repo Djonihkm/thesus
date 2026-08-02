@@ -38,7 +38,7 @@ export function PdfViewer({ fileUrl }: PdfViewerProps) {
           const viewport = page.getViewport({ scale });
 
           const canvas = document.createElement("canvas");
-          canvas.className = "mx-auto mb-4 block rounded shadow-sm";
+          canvas.className = "mx-auto mb-4 block rounded-lg shadow-sm";
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           container.appendChild(canvas);
@@ -67,7 +67,7 @@ export function PdfViewer({ fileUrl }: PdfViewerProps) {
         <p className="py-10 text-center text-sm text-ink-muted">Chargement du document…</p>
       ) : null}
       {status === "error" ? (
-        <p className="py-10 text-center text-sm text-red-600">
+        <p className="py-10 text-center text-sm text-flag">
           Impossible d&apos;afficher ce document.
         </p>
       ) : null}

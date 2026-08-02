@@ -46,8 +46,8 @@ export function QuizForm({ quizId, questions }: QuizFormProps) {
     return (
       <div className="flex flex-col gap-6">
         <div className="rounded-2xl border border-border-dark/10 bg-surface-light p-6">
-          <p className="text-sm font-medium tracking-wide text-accent">Résultat</p>
-          <p className="mt-2 text-2xl font-medium tracking-[-0.01em] text-ink">
+          <p className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">Résultat</p>
+          <p className="mt-2 font-serif text-2xl font-normal tracking-[-0.01em] text-ink">
             {result.correctCount}/{result.total} bonnes réponses ({result.score}%)
           </p>
         </div>
@@ -59,7 +59,7 @@ export function QuizForm({ quizId, questions }: QuizFormProps) {
               className={`rounded-2xl border p-5 ${
                 item.isCorrect
                   ? "border-border-dark/10 bg-surface-light"
-                  : "border-red-200 bg-red-50"
+                  : "border-flag/30 bg-flag-soft"
               }`}
             >
               <p className="text-sm font-medium text-ink">
@@ -108,7 +108,7 @@ export function QuizForm({ quizId, questions }: QuizFormProps) {
               {question.choices.map((choice) => (
                 <label
                   key={choice}
-                  className="flex items-center gap-3 rounded-lg border border-ink/10 px-3 py-2 text-sm text-ink hover:bg-surface-neutral"
+                  className="flex items-center gap-3 rounded-lg border border-ink/15 px-3 py-2 text-sm text-ink hover:bg-surface-neutral"
                 >
                   <input
                     type="radio"
