@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@xenova/transformers", "onnxruntime-node"],
+  serverExternalPackages: [
+    "pdfjs-dist",
+    "@xenova/transformers",
+    "onnxruntime-node",
+    "@adobe/pdfservices-node-sdk",
+  ],
 };
 
 export default nextConfig;

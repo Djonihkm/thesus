@@ -1,0 +1,46 @@
+// src/app/dashboard/jury/memoires/[id]/document/page.tsx
+import { notFound, redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth-guard";
+import { prisma } from "@/lib/prisma";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { DocumentEditor } from "@/components/document/DocumentEditor";
+
+export default async function JuryDocumentPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const user = await requireRole("JURY");
+
+  const memoire = await prisma.memoire.findUnique({
+    where: { id },
+    include: { student: { select: { name: true } } },
+  });
+
+  if (!memoire || !user.institutionId || memoire.institutionId !== user.institutionId) {
+    notFound();
+  }
+
+  if (memoire.status !== "COMPLETED") {
+    redirect("/dashboard/jury/memoires");
+  }
+
+  return (
+    <>
+      <DashboardHeader
+        eyebrow="Document"
+        title={memoire.title}
+        description={`${memoire.student.name} · surlignez, soulignez et commentez les passages à discuter.`}
+      />
+
+      <div className="mt-8">
+        <DocumentEditor
+          memoireId={memoire.id}
+          mode="annotate"
+          initialContent={memoire.editableContent ?? "<p></p>"}
+        />
+      </div>
+    </>
+  );
+}

@@ -1,11 +1,12 @@
 // src/lib/memoire-processing.ts
 import { get } from "@vercel/blob";
-import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { FileType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateAuditReport } from "@/lib/audit";
 import { runPlagiarismCheck } from "@/lib/plagiarism";
+import { convertPdfToDocx, PdfConversionError } from "@/lib/pdf-conversion";
+import { createDocumentImageConverter } from "@/lib/document-images";
 
 export async function fetchBlobBuffer(fileUrl: string): Promise<Buffer> {
   const result = await get(fileUrl, { access: "private" });
@@ -16,30 +17,42 @@ export async function fetchBlobBuffer(fileUrl: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
-async function extractText(fileUrl: string, fileType: FileType): Promise<string> {
-  const buffer = await fetchBlobBuffer(fileUrl);
-
+// Normalise le fichier déposé en DOCX : un DOCX est utilisé tel quel, un PDF est converti
+// via Adobe PDF Services (structure — titres, paragraphes, listes — préservée, contrairement
+// à une extraction de texte brut). Un seul chemin mammoth ensuite pour les deux formats.
+export async function toDocxBuffer(buffer: Buffer, fileType: FileType): Promise<Buffer> {
   if (fileType === "PDF") {
-    const parser = new PDFParse({ data: buffer });
-    try {
-      const result = await parser.getText();
-      return result.text;
-    } finally {
-      await parser.destroy();
-    }
+    return convertPdfToDocx(buffer);
   }
-
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value;
+  return buffer;
 }
 
 export async function processMemoire(memoireId: string): Promise<void> {
   const memoire = await prisma.memoire.findUnique({ where: { id: memoireId } });
   if (!memoire) return;
 
+  let docxBuffer: Buffer;
+  try {
+    const buffer = await fetchBlobBuffer(memoire.fileUrl);
+    docxBuffer = await toDocxBuffer(buffer, memoire.fileType);
+  } catch (error) {
+    await prisma.memoire.update({
+      where: { id: memoireId },
+      data: {
+        status: "FAILED",
+        errorMessage:
+          error instanceof PdfConversionError || error instanceof Error
+            ? error.message
+            : "Échec de la préparation du document déposé.",
+      },
+    });
+    return;
+  }
+
   let extractedText: string;
   try {
-    extractedText = await extractText(memoire.fileUrl, memoire.fileType);
+    const result = await mammoth.extractRawText({ buffer: docxBuffer });
+    extractedText = result.value;
     if (!extractedText.trim()) {
       throw new Error("Aucun texte n'a pu être extrait du document.");
     }
@@ -57,9 +70,20 @@ export async function processMemoire(memoireId: string): Promise<void> {
     return;
   }
 
+  // Version éditable "vivante" du mémoire — un échec ici est non bloquant (même logique
+  // que l'anti-plagiat) : la page document affichera un message de repli plutôt que de
+  // faire échouer tout le traitement pour une fonctionnalité secondaire.
+  const editableContent = await mammoth
+    .convertToHtml(
+      { buffer: docxBuffer },
+      { convertImage: createDocumentImageConverter(memoireId) },
+    )
+    .then((result) => result.value)
+    .catch(() => null);
+
   await prisma.memoire.update({
     where: { id: memoireId },
-    data: { status: "PROCESSING", extractedText },
+    data: { status: "PROCESSING", extractedText, editableContent },
   });
 
   try {

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { EvaluationForm } from "@/components/dashboard/EvaluationForm";
 import { DocumentViewerModal } from "@/components/dashboard/DocumentViewerModal";
+import { Button } from "@/components/ui/Button";
 import type { EvaluationCriterion } from "@/lib/evaluation-criteria";
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
@@ -51,11 +52,20 @@ export default async function JuryMemoireDetailPage({
         title={memoire.title}
         description={`${memoire.student.name} · déposé le ${dateFormatter.format(memoire.submittedAt)}`}
         actions={
-          <DocumentViewerModal
-            documentUrl={`/api/jury/memoires/${memoire.id}/document`}
-            title={memoire.title}
-            fileType={memoire.fileType}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <DocumentViewerModal
+              documentUrl={`/api/jury/memoires/${memoire.id}/document`}
+              title={memoire.title}
+              fileType={memoire.fileType}
+            />
+            <Button
+              href={`/dashboard/jury/memoires/${memoire.id}/document`}
+              variant="outline"
+              className="px-5! py-2! text-xs"
+            >
+              Annoter le document
+            </Button>
+          </div>
         }
       />
 

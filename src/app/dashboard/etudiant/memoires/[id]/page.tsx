@@ -1,6 +1,6 @@
 // src/app/dashboard/etudiant/memoires/[id]/page.tsx
 import { notFound } from "next/navigation";
-import { FileText, ShieldCheck, ListChecks, Users, Loader2 } from "lucide-react";
+import { FileText, ShieldCheck, ListChecks, Users, Loader2, FileEdit } from "lucide-react";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -162,6 +162,14 @@ export default async function MemoireDetailPage({
           summary={jurySummary}
           href={juryHref}
           ctaLabel={memoire.jurySimulation ? "Voir les questions" : "Générer les questions"}
+        />
+        <ActionCard
+          icon={<FileEdit size={18} />}
+          title="Document"
+          description="Éditez votre mémoire en ligne et consultez les annotations du jury."
+          status={isReady ? "available" : "locked"}
+          href={isReady ? `/dashboard/etudiant/memoires/${memoire.id}/document` : undefined}
+          ctaLabel="Ouvrir le document"
         />
       </div>
     </>

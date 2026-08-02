@@ -1,0 +1,44 @@
+// src/app/dashboard/etudiant/memoires/[id]/document/page.tsx
+import { notFound, redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth-guard";
+import { prisma } from "@/lib/prisma";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { DocumentEditor } from "@/components/document/DocumentEditor";
+
+export default async function StudentDocumentPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const user = await requireRole("STUDENT");
+
+  const memoire = await prisma.memoire.findUnique({ where: { id } });
+
+  if (!memoire || memoire.studentId !== user.id) {
+    notFound();
+  }
+
+  if (memoire.status !== "COMPLETED") {
+    redirect(`/dashboard/etudiant/memoires/${memoire.id}`);
+  }
+
+  return (
+    <>
+      <DashboardHeader
+        eyebrow="Document"
+        title={memoire.title}
+        description="Éditez le contenu de votre mémoire. Le jury peut le consulter et l'annoter une fois votre dépôt terminé."
+      />
+
+      <div className="mt-8">
+        <DocumentEditor
+          memoireId={memoire.id}
+          mode="edit"
+          initialContent={memoire.editableContent ?? "<p></p>"}
+          canRegenerate={memoire.fileType === "PDF"}
+        />
+      </div>
+    </>
+  );
+}

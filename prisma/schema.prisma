@@ -128,6 +128,11 @@ model Memoire {
   // traitement, et réutilisée comme corpus de comparaison pour les mémoires suivants.
   contentEmbedding    Json?
   contentFingerprints Json?
+
+  // Version HTML éditable du mémoire (générée à partir du DOCX via mammoth, ou reconstruite
+  // par paragraphes depuis extractedText pour un PDF) — le contenu "vivant" affiché/édité
+  // dans la vue document, distinct du fichier original conservé dans fileUrl.
+  editableContent String? @db.Text
   studentId     String
   student       User          @relation("MemoireStudent", fields: [studentId], references: [id])
   institutionId String

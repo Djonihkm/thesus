@@ -9,8 +9,13 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-poppins);
+  --font-serif: var(--font-fraunces);
 
   --color-accent: #d4a857;
+  --color-accent-dark: #b8862e;
+  --color-accent-on-dark: #e8c888;
+  --color-accent-lime: #d4a857;
+
   --color-surface-dark: #0a0a0a;
   --color-surface-light: #ffffff;
   --color-surface-neutral: #f5f5f3;
@@ -19,11 +24,117 @@
   --color-ink-muted: #6b6b6b;
   --color-paper: #ffffff;
   --color-paper-muted: #8a8a8a;
+
   --color-border-dark: #2a2a2a;
+  --color-border-default: #eaeaea;
+  --color-border-neutral: #e5e5e0;
+
+  --color-secondary: #6b6b6b;
+  --color-muted: #8a8a8a;
+
+  --color-flag: #9b3b32;
+  --color-flag-soft: #f3e3e1;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+.hero-gradient {
+  background: linear-gradient(135deg, #0a0a0a 0%, #262626 100%);
+}
+
+.tiptap-document .ProseMirror {
+  outline: none;
+  font-family: var(--font-serif), Georgia, serif;
+  color: var(--color-ink);
+  line-height: 1.7;
+}
+
+.tiptap-document .ProseMirror > * + * {
+  margin-top: 1em;
+}
+
+.tiptap-document .ProseMirror h1 {
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tiptap-document .ProseMirror h2 {
+  font-size: 1.4rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tiptap-document .ProseMirror h3 {
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.tiptap-document .ProseMirror ul,
+.tiptap-document .ProseMirror ol {
+  padding-left: 1.5em;
+}
+
+.tiptap-document .ProseMirror ul {
+  list-style: disc;
+}
+
+.tiptap-document .ProseMirror ol {
+  list-style: decimal;
+}
+
+.tiptap-document .ProseMirror blockquote {
+  border-left: 2px solid var(--color-border-neutral);
+  padding-left: 1em;
+  color: var(--color-ink-muted);
+}
+
+.tiptap-document .ProseMirror mark {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+
+.tiptap-document .ProseMirror .plagiarism-flag-mark {
+  background: var(--color-flag-soft);
+  color: var(--color-flag);
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+
+.tiptap-document .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.tiptap-document .ProseMirror .tableWrapper {
+  overflow-x: auto;
+}
+
+.tiptap-document .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.tiptap-document .ProseMirror th,
+.tiptap-document .ProseMirror td {
+  border: 1px solid var(--color-border-neutral);
+  padding: 0.4em 0.6em;
+  vertical-align: top;
+  text-align: left;
+}
+
+.tiptap-document .ProseMirror th {
+  background: var(--color-surface-neutral);
+  font-weight: 500;
+}
+
+.tiptap-document .ProseMirror .selectedCell {
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
 }
