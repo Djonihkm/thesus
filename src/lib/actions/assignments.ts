@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -7,6 +8,20 @@ export type AssignmentActionState = {
   error?: string;
   success?: boolean;
 };
+
+// Même souci que les mutations de thème (voir src/lib/actions/themes.ts) : ces routes
+// sont dynamiques (pas de Full Route Cache), donc c'est le Router Cache côté client qu'il
+// faut invalider, sinon la page qui vient de déclencher l'action reste affichée avec des
+// données obsolètes jusqu'à un rechargement manuel.
+function revalidateAssignmentPaths(memoireId: string, juryId: string) {
+  revalidatePath("/dashboard/etablissement/memoires");
+  revalidatePath("/dashboard/etablissement");
+  revalidatePath("/dashboard/etablissement/jurys");
+  revalidatePath(`/dashboard/etablissement/jurys/${juryId}`);
+  revalidatePath("/dashboard/jury");
+  revalidatePath("/dashboard/jury/memoires");
+  revalidatePath(`/dashboard/etudiant/memoires/${memoireId}`);
+}
 
 // Établissement : valide la suggestion (calculée à l'affichage, voir
 // src/lib/jury-assignment.ts) ou choisit un autre jury manuellement — les deux passent
@@ -43,5 +58,6 @@ export async function assignJuryToMemoireAction(
     data: { memoireId, juryId, status: "VALIDATED" },
   });
 
+  revalidateAssignmentPaths(memoireId, juryId);
   return { success: true };
 }
