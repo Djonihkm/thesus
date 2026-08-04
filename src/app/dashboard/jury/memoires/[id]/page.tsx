@@ -29,10 +29,18 @@ export default async function JuryMemoireDetailPage({
       student: { select: { name: true } },
       auditReport: true,
       evaluations: { where: { juryId: user.id } },
+      assignments: { where: { juryId: user.id, status: "VALIDATED" } },
     },
   });
 
   if (!memoire || !user.institutionId || memoire.institutionId !== user.institutionId) {
+    notFound();
+  }
+
+  // Accès restreint aux mémoires assignés à ce jury, ou déjà évalués par lui (historique
+  // antérieur à l'assignation) — cohérent avec la liste filtrée de /dashboard/jury/memoires.
+  const isAssignedOrEvaluated = memoire.assignments.length > 0 || memoire.evaluations.length > 0;
+  if (!isAssignedOrEvaluated) {
     notFound();
   }
 

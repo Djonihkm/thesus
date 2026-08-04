@@ -9,7 +9,14 @@ export default async function JuryMemoiresPage() {
 
   const memoires = user.institutionId
     ? await prisma.memoire.findMany({
-        where: { institutionId: user.institutionId, status: "COMPLETED" },
+        where: {
+          institutionId: user.institutionId,
+          status: "COMPLETED",
+          OR: [
+            { assignments: { some: { juryId: user.id, status: "VALIDATED" } } },
+            { evaluations: { some: { juryId: user.id } } },
+          ],
+        },
         orderBy: { submittedAt: "desc" },
         include: {
           student: { select: { name: true } },
@@ -23,12 +30,12 @@ export default async function JuryMemoiresPage() {
       <DashboardHeader
         eyebrow="Mémoires à évaluer"
         title="Mémoires prêts pour soutenance"
-        description="Tous les mémoires de votre établissement dont le traitement est terminé."
+        description="Les mémoires qui vous sont assignés, prêts pour soutenance."
       />
 
       {memoires.length === 0 ? (
         <p className="mt-10 text-sm text-ink-muted">
-          Aucun mémoire prêt pour évaluation dans votre établissement pour le moment.
+          Aucun mémoire ne vous est assigné pour le moment.
         </p>
       ) : (
         <div className="mt-10 flex flex-col gap-3">

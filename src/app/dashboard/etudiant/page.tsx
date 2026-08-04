@@ -1,29 +1,40 @@
 // src/app/dashboard/etudiant/page.tsx
-import Link from "next/link";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { ActionCard } from "@/components/dashboard/ActionCard";
 import { MemoireCard } from "@/components/dashboard/MemoireCard";
 import { MemoireUploadForm } from "@/components/dashboard/MemoireUploadForm";
+import { ThemeStatusBanner } from "@/components/dashboard/ThemeStatusBanner";
 import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 import { Button } from "@/components/ui/Button";
 import { AuditIcon, PlagiarismIcon, QuizIcon, JuryIcon } from "@/components/icons";
+import { getStudentThemeContext } from "@/lib/student-theme";
 
-const RECENT_MEMOIRES_LIMIT = 3;
+const RECENT_MEMOIRES_LIMIT = 5;
 
 export default async function EtudiantDashboardPage() {
   const user = await requireRole("STUDENT");
 
-  const memoires = await prisma.memoire.findMany({
-    where: { studentId: user.id },
-    orderBy: { submittedAt: "desc" },
-    take: RECENT_MEMOIRES_LIMIT,
-  });
+  const [memoires, themeContext] = await Promise.all([
+    prisma.memoire.findMany({
+      where: { studentId: user.id },
+      orderBy: { submittedAt: "desc" },
+      take: RECENT_MEMOIRES_LIMIT,
+    }),
+    user.institutionId
+      ? getStudentThemeContext(user.id, user.institutionId)
+      : Promise.resolve({ currentTheme: null, availableThemes: [] }),
+  ]);
 
   const hasProcessingMemoire = memoires.some(
     (memoire) => memoire.status === "PENDING" || memoire.status === "PROCESSING",
   );
+  // Le take(5) ci-dessus ne fausse pas ce test : s'il existe au moins un mémoire, la
+  // requête limitée en renvoie forcément au moins un.
+  const hasAnyMemoire = memoires.length > 0;
+  const isThemeValidated = themeContext.currentTheme?.status === "VALIDATED";
+  const canDeposit = hasAnyMemoire || isThemeValidated;
 
   return (
     <>
@@ -32,47 +43,68 @@ export default async function EtudiantDashboardPage() {
       <DashboardHeader
         eyebrow="Espace étudiant"
         title={`Bonjour ${user.name}`}
-        description="Déposez votre mémoire pour débloquer l'audit, l'anti-plagiat, le quiz et la préparation au jury."
+        description={
+          canDeposit
+            ? "Déposez votre mémoire pour débloquer l'audit, l'anti-plagiat, le quiz et la préparation au jury."
+            : "Choisissez ou proposez un thème pour commencer votre parcours."
+        }
       />
 
-      <div className="mt-12">
-        {memoires.length === 0 ? (
-          <MemoireUploadForm />
-        ) : (
-          <div>
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
-                Mes derniers mémoires
-              </h2>
+      {!hasAnyMemoire ? (
+        <div className="mt-12">
+          {!user.institutionId ? (
+            <p className="text-sm text-ink-muted">
+              Votre établissement n&apos;est pas encore rattaché à la plateforme. Contactez le
+              support pour débloquer le choix d&apos;un thème.
+            </p>
+          ) : (
+            <ThemeStatusBanner currentTheme={themeContext.currentTheme} />
+          )}
+        </div>
+      ) : null}
+
+      {canDeposit ? (
+        <div className="mt-12">
+          {!hasAnyMemoire ? (
+            <MemoireUploadForm />
+          ) : (
+            <div>
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
+                  Mes derniers mémoires
+                </h2>
+                <Button
+                  href="/dashboard/etudiant/memoires"
+                  variant="outline"
+                  tone="light"
+                  className="text-sm"
+                >
+                  Voir tous mes mémoires
+                </Button>
+              </div>
+              <div className="mt-5 flex flex-col gap-3">
+                {memoires.map((memoire) => (
+                  <MemoireCard
+                    key={memoire.id}
+                    id={memoire.id}
+                    title={memoire.title}
+                    status={memoire.status}
+                    submittedAt={memoire.submittedAt}
+                  />
+                ))}
+              </div>
               <Button
                 href="/dashboard/etudiant/memoires"
-                variant="outline"
                 tone="light"
-                className="text-sm"
+                variant="outline"
+                className="mt-4 text-sm"
               >
-                Voir tous mes mémoires
+                Déposer un nouveau mémoire
               </Button>
             </div>
-            <div className="mt-5 flex flex-col gap-3">
-              {memoires.map((memoire) => (
-                <MemoireCard
-                  key={memoire.id}
-                  id={memoire.id}
-                  title={memoire.title}
-                  status={memoire.status}
-                  submittedAt={memoire.submittedAt}
-                />
-              ))}
-            </div>
-            <Link
-              href="/dashboard/etudiant/memoires"
-              className="mt-4 inline-block text-sm font-medium text-accent hover:underline"
-            >
-              Déposer un nouveau mémoire →
-            </Link>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="mt-12">
         <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">

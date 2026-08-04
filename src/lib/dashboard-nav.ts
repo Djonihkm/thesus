@@ -2,16 +2,12 @@
 import {
   LayoutDashboard,
   FileText,
-  ShieldCheck,
-  ListChecks,
-  Users,
   ClipboardCheck,
-  Building2,
-  BarChart3,
-  Settings,
   BookOpen,
   TrendingUp,
-  UserCircle, 
+  UserCircle,
+  Lightbulb,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { Role } from "@prisma/client";
@@ -32,6 +28,11 @@ const STUDENT_NAV: NavItem[] = [
     label: "Mes mémoires",
     href: "/dashboard/etudiant/memoires",
     icon: BookOpen,
+  },
+  {
+    label: "Thème",
+    href: "/dashboard/etudiant/themes",
+    icon: Lightbulb,
   },
   {
     label: "Évaluation",
@@ -58,10 +59,9 @@ const JURY_NAV: NavItem[] = [
 
 const INSTITUTION_NAV: NavItem[] = [
   { label: "Tableau de bord", href: "/dashboard/etablissement", icon: LayoutDashboard },
-  { label: "Étudiants", href: "/dashboard/etablissement/etudiants", icon: Users },
-  { label: "Jurys", href: "/dashboard/etablissement/jurys", icon: Building2 },
-  { label: "Statistiques", href: "/dashboard/etablissement/stats", icon: BarChart3 },
-  { label: "Paramètres", href: "/dashboard/etablissement/parametres", icon: Settings },
+  { label: "Thèmes", href: "/dashboard/etablissement/themes", icon: Lightbulb },
+  { label: "Mémoires", href: "/dashboard/etablissement/memoires", icon: FileText },
+  { label: "Jurys", href: "/dashboard/etablissement/jurys", icon: Users },
 ];
 
 export function getNavForRole(role: Role): NavItem[] {

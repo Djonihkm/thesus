@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FileText } from "lucide-react";
 import { MemoireStatus } from "@prisma/client";
 import { MemoireStatusBadge } from "./MemoireStatusBadge";
+import { DeleteMemoireButton } from "./DeleteMemoireButton";
 
 interface MemoireCardProps {
   id: string;
@@ -19,11 +20,10 @@ const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
 
 export function MemoireCard({ id, title, status, submittedAt }: MemoireCardProps) {
   return (
-    <Link
-      href={`/dashboard/etudiant/memoires/${id}`}
-      className="group flex items-center justify-between gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10"
-    >
-      <div className="flex items-center gap-4 min-w-0">
+    <div className="group relative flex items-center justify-between gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10">
+      <Link href={`/dashboard/etudiant/memoires/${id}`} className="absolute inset-0" aria-label={title} />
+
+      <div className="pointer-events-none flex min-w-0 items-center gap-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent-dark">
           <FileText size={18} />
         </div>
@@ -34,7 +34,11 @@ export function MemoireCard({ id, title, status, submittedAt }: MemoireCardProps
           </p>
         </div>
       </div>
-      <MemoireStatusBadge status={status} />
-    </Link>
+
+      <div className="relative z-10 flex shrink-0 items-center gap-2">
+        <MemoireStatusBadge status={status} />
+        {status === "FAILED" ? <DeleteMemoireButton memoireId={id} title={title} /> : null}
+      </div>
+    </div>
   );
 }

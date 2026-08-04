@@ -32,12 +32,21 @@ export default async function MemoireDetailPage({
       plagiarismReport: true,
       quiz: { include: { _count: { select: { questions: true } } } },
       jurySimulation: { include: { _count: { select: { questions: true } } } },
+      theme: true,
+      assignments: {
+        orderBy: { assignedAt: "desc" },
+        take: 1,
+        include: { jury: { select: { name: true } } },
+      },
     },
   });
 
   if (!memoire || memoire.studentId !== user.id) {
     notFound();
   }
+
+  const assignedJuryName =
+    memoire.assignments[0]?.status === "VALIDATED" ? memoire.assignments[0].jury.name : null;
 
   const auditStatus: ServiceStatus = memoire.auditReport
     ? "done"
@@ -101,9 +110,20 @@ export default async function MemoireDetailPage({
       <DashboardHeader
         eyebrow="Mémoire déposé"
         title={memoire.title}
-        description={`Déposé le ${dateFormatter.format(memoire.submittedAt)} · fichier ${memoire.fileType}`}
+        description={`Déposé le ${dateFormatter.format(memoire.submittedAt)} · fichier ${memoire.fileType}${
+          assignedJuryName ? ` · encadré par ${assignedJuryName}` : ""
+        }`}
         actions={<MemoireStatusBadge status={memoire.status} />}
       />
+
+      {memoire.theme ? (
+        <div className="mt-8 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5">
+          <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
+            {memoire.theme.category}
+          </span>
+          <p className="mt-1 text-sm font-medium text-ink">Thème : {memoire.theme.title}</p>
+        </div>
+      ) : null}
 
       {isProcessing ? (
         <div className="mt-8 flex items-center gap-3 rounded-2xl border border-accent/20 bg-accent/5 px-5 py-4">

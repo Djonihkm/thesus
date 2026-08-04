@@ -23,8 +23,18 @@ export default async function JuryDashboardPage() {
     );
   }
 
+  // Restreint aux mémoires réellement assignés à ce jury (assignation validée), en
+  // gardant aussi ceux déjà évalués par le passé (avant l'introduction de l'assignation,
+  // ou si l'assignation a changé depuis) pour ne pas faire disparaître son historique.
   const memoires = await prisma.memoire.findMany({
-    where: { institutionId: user.institutionId, status: "COMPLETED" },
+    where: {
+      institutionId: user.institutionId,
+      status: "COMPLETED",
+      OR: [
+        { assignments: { some: { juryId: user.id, status: "VALIDATED" } } },
+        { evaluations: { some: { juryId: user.id } } },
+      ],
+    },
     orderBy: { submittedAt: "desc" },
     include: { student: { select: { name: true } }, evaluations: { where: { juryId: user.id } } },
   });
@@ -37,7 +47,7 @@ export default async function JuryDashboardPage() {
       <DashboardHeader
         eyebrow="Espace jury"
         title={`Bonjour ${user.name}`}
-        description="Consultez les mémoires prêts pour soutenance dans votre établissement et enregistrez vos évaluations."
+        description="Consultez les mémoires qui vous sont assignés et enregistrez vos évaluations."
       />
 
       <div className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-3">
@@ -60,7 +70,7 @@ export default async function JuryDashboardPage() {
 
         {memoires.length === 0 ? (
           <p className="mt-4 text-sm text-ink-muted">
-            Aucun mémoire prêt pour évaluation dans votre établissement pour le moment.
+            Aucun mémoire ne vous est assigné pour le moment.
           </p>
         ) : pending.length === 0 ? (
           <p className="mt-4 text-sm text-ink-muted">

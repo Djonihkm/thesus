@@ -56,6 +56,17 @@ enum AuthTokenType {
   PASSWORD_RESET
 }
 
+enum ThemeStatus {
+  PROPOSED
+  VALIDATED
+  REJECTED
+}
+
+enum AssignmentStatus {
+  SUGGESTED
+  VALIDATED
+}
+
 model Institution {
   id        String   @id @default(cuid())
   name      String
@@ -68,6 +79,7 @@ model Institution {
 
   users    User[]
   memoires Memoire[]
+  themes   Theme[]
 }
 
 model User {
@@ -100,6 +112,15 @@ model User {
   evaluationsJury DefenseEvaluation[]
   quizAttempts    QuizAttempt[]
   authTokens      AuthToken[]
+
+  proposedThemes  Theme[]             @relation("ThemeProposedBy")
+  juryAssignments MemoireAssignment[] @relation("JuryAssignments")
+
+  // Thème choisi/proposé par l'étudiant en amont du dépôt (avant qu'un Memoire n'existe) —
+  // condition pour débloquer le dépôt de mémoire. Distinct de Memoire.themeId, qui n'est
+  // qu'une copie faite au moment du dépôt.
+  currentThemeId String?
+  currentTheme   Theme?  @relation("StudentCurrentTheme", fields: [currentThemeId], references: [id])
 }
 
 model AuthToken {
@@ -140,11 +161,59 @@ model Memoire {
   submittedAt   DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  // Thème choisi (dans la liste validée de l'établissement) ou proposé par l'étudiant —
+  // nullable : un mémoire peut exister avant qu'un thème soit choisi/validé.
+  themeId String?
+  theme   Theme?  @relation(fields: [themeId], references: [id])
+
   auditReport      AuditReport?
   plagiarismReport PlagiarismReport?
   quiz             Quiz?
   jurySimulation   JurySimulation?
   evaluations      DefenseEvaluation[]
+  assignments      MemoireAssignment[]
+}
+
+model Theme {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+
+  // Catégorie/domaine du thème, utilisée pour le matching avec la spécialité (User.specialty)
+  // d'un jury lors de la suggestion d'assignation — comparaison texte simple (voir
+  // src/lib/jury-assignment.ts), pas d'embeddings pour cette itération.
+  category String
+
+  status        ThemeStatus @default(PROPOSED)
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id])
+
+  // Renseigné si le thème a été proposé par un étudiant (à valider par l'établissement) ;
+  // null si créé directement par l'établissement (déjà VALIDATED).
+  proposedByUserId String?
+  proposedBy       User?    @relation("ThemeProposedBy", fields: [proposedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memoires        Memoire[]
+  currentByUsers  User[]    @relation("StudentCurrentTheme")
+}
+
+// Historique des assignations mémoire -> jury : une nouvelle ligne à chaque changement
+// (plutôt qu'une mise à jour en place), pour garder la trace de qui a été assigné et
+// quand. L'assignation "active" pour un mémoire est la ligne la plus récente
+// (orderBy assignedAt desc, take 1).
+model MemoireAssignment {
+  id        String           @id @default(cuid())
+  memoireId String
+  memoire   Memoire          @relation(fields: [memoireId], references: [id])
+  juryId    String
+  jury      User             @relation("JuryAssignments", fields: [juryId], references: [id])
+  status    AssignmentStatus @default(SUGGESTED)
+  assignedAt DateTime        @default(now())
+
+  @@index([memoireId, assignedAt])
 }
 
 model AuditReport {
