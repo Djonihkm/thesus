@@ -24,7 +24,7 @@ export default async function EtudiantDashboardPage() {
     }),
     user.institutionId
       ? getStudentThemeContext(user.id, user.institutionId)
-      : Promise.resolve({ currentTheme: null, availableThemes: [] }),
+      : Promise.resolve({ currentTheme: null, pendingSelection: null, availableThemes: [] }),
   ]);
 
   const hasProcessingMemoire = memoires.some(
@@ -33,8 +33,10 @@ export default async function EtudiantDashboardPage() {
   // Le take(5) ci-dessus ne fausse pas ce test : s'il existe au moins un mémoire, la
   // requête limitée en renvoie forcément au moins un.
   const hasAnyMemoire = memoires.length > 0;
-  const isThemeValidated = themeContext.currentTheme?.status === "VALIDATED";
-  const canDeposit = hasAnyMemoire || isThemeValidated;
+  // Le dépôt n'est plus conditionné à un thème (voir createMemoireAction) — seule
+  // l'existence d'un rattachement à l'établissement reste requise, condition inchangée et
+  // sans rapport avec le thème.
+  const canDeposit = Boolean(user.institutionId);
 
   return (
     <>
@@ -45,23 +47,26 @@ export default async function EtudiantDashboardPage() {
         title={`Bonjour ${user.name}`}
         description={
           canDeposit
-            ? "Déposez votre mémoire pour débloquer l'audit, l'anti-plagiat, le quiz et la préparation au jury."
-            : "Choisissez ou proposez un thème pour commencer votre parcours."
+            ? "Déposez votre mémoire pour accéder immédiatement à l'audit, l'anti-plagiat, le quiz et la préparation au jury."
+            : "Votre établissement n'est pas encore rattaché à la plateforme."
         }
       />
 
-      {!hasAnyMemoire ? (
+      {canDeposit ? (
         <div className="mt-12">
-          {!user.institutionId ? (
-            <p className="text-sm text-ink-muted">
-              Votre établissement n&apos;est pas encore rattaché à la plateforme. Contactez le
-              support pour débloquer le choix d&apos;un thème.
-            </p>
-          ) : (
-            <ThemeStatusBanner currentTheme={themeContext.currentTheme} />
-          )}
+          <ThemeStatusBanner
+            currentTheme={themeContext.currentTheme}
+            pendingSelection={themeContext.pendingSelection}
+          />
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-12">
+          <p className="text-sm text-ink-muted">
+            Contactez le support pour rattacher votre compte à un établissement et débloquer le
+            dépôt de mémoire.
+          </p>
+        </div>
+      )}
 
       {canDeposit ? (
         <div className="mt-12">

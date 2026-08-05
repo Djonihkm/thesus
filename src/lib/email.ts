@@ -53,6 +53,27 @@ export async function sendVerificationEmail(to: string, name: string, token: str
   });
 }
 
+export async function sendJuryAccountCreatedEmail(
+  to: string,
+  name: string,
+  temporaryPassword: string,
+) {
+  const url = `${getAppUrl()}/connexion`;
+
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: "Votre compte jury Thesus a été créé",
+    html: emailShell(
+      "Votre compte jury est prêt",
+      `<p>Bonjour ${name},</p><p>Votre établissement vient de créer votre compte jury sur Thesus. Voici vos identifiants de connexion :</p><p style="margin: 16px 0; padding: 12px 16px; background-color: #F5F5F3; border-radius: 8px;"><strong>Email :</strong> ${to}<br /><strong>Mot de passe temporaire :</strong> ${temporaryPassword}</p><p>Pour votre sécurité, il vous sera demandé de choisir un nouveau mot de passe dès votre première connexion.</p>`,
+      "Se connecter",
+      url,
+    ),
+    text: `Bonjour ${name}, votre compte jury Thesus a été créé. Email : ${to} — Mot de passe temporaire : ${temporaryPassword}. Connectez-vous sur ${url} ; un changement de mot de passe vous sera demandé dès la première connexion.`,
+  });
+}
+
 export async function sendPasswordResetEmail(to: string, name: string, token: string) {
   const url = `${getAppUrl()}/reinitialiser-mot-de-passe?token=${token}`;
 

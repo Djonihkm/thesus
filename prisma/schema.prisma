@@ -67,6 +67,12 @@ enum AssignmentStatus {
   VALIDATED
 }
 
+enum ThemeSelectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Institution {
   id        String   @id @default(cuid())
   name      String
@@ -94,6 +100,11 @@ model User {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
+  // Vrai pour les comptes créés directement par un établissement (ex. compte jury avec
+  // mot de passe temporaire) — force un changement de mot de passe avant tout accès au
+  // dashboard (voir requireRole dans src/lib/auth-guard.ts), puis repasse à false.
+  mustChangePassword Boolean @default(false)
+
   // Renseigné quand l'établissement saisi à l'inscription (étudiant/jury) ne
   // correspond à aucune Institution existante ; à rattacher manuellement plus tard.
   affiliatedInstitutionName String?
@@ -118,9 +129,16 @@ model User {
 
   // Thème choisi/proposé par l'étudiant en amont du dépôt (avant qu'un Memoire n'existe) —
   // condition pour débloquer le dépôt de mémoire. Distinct de Memoire.themeId, qui n'est
-  // qu'une copie faite au moment du dépôt.
+  // qu'une copie faite au moment du dépôt. N'est renseigné que via une ThemeSelection
+  // APPROVED (voir plus bas) — un currentTheme pointe donc toujours vers un thème VALIDATED.
   currentThemeId String?
   currentTheme   Theme?  @relation("StudentCurrentTheme", fields: [currentThemeId], references: [id])
+
+  // Thème verrouillé sur cet étudiant une fois sa demande de sélection approuvée — au plus
+  // un thème "pris" par utilisateur (contrainte applicative, pas de @@unique ici car
+  // takenByUserId vit sur Theme).
+  takenThemes     Theme[]           @relation("ThemeTakenBy")
+  themeSelections ThemeSelection[]
 }
 
 model AuthToken {
@@ -193,11 +211,37 @@ model Theme {
   proposedByUserId String?
   proposedBy       User?    @relation("ThemeProposedBy", fields: [proposedByUserId], references: [id])
 
+  // Renseigné dès qu'une demande de sélection est approuvée pour cet étudiant — le thème
+  // n'est alors plus disponible pour personne d'autre (exclusivité). Distinct du statut
+  // VALIDATED du thème, qui ne concerne que sa proposition initiale.
+  takenByUserId String?
+  takenBy       User?   @relation("ThemeTakenBy", fields: [takenByUserId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   memoires        Memoire[]
-  currentByUsers  User[]    @relation("StudentCurrentTheme")
+  currentByUsers  User[]           @relation("StudentCurrentTheme")
+  selections      ThemeSelection[]
+}
+
+// Demande d'un étudiant pour obtenir un thème déjà VALIDATED (établissement ou son propre
+// thème proposé) — séparée du statut de proposition du thème lui-même : un thème VALIDATED
+// peut avoir une sélection PENDING/APPROVED/REJECTED en cours pour un étudiant donné.
+// L'approbation renseigne Theme.takenByUserId + User.currentThemeId (voir
+// approveThemeSelectionAction).
+model ThemeSelection {
+  id        String               @id @default(cuid())
+  themeId   String
+  theme     Theme                @relation(fields: [themeId], references: [id])
+  studentId String
+  student   User                 @relation(fields: [studentId], references: [id])
+  status    ThemeSelectionStatus @default(PENDING)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([themeId, status])
+  @@index([studentId, status])
 }
 
 // Historique des assignations mémoire -> jury : une nouvelle ligne à chaque changement

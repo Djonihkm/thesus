@@ -23,5 +23,12 @@ export async function requireRole(role: Role) {
     redirect("/connexion");
   }
 
+  // Comptes créés directement par un établissement (ex. jury avec mot de passe
+  // temporaire, voir src/lib/actions/jury-accounts.ts) : aucun accès au dashboard tant
+  // que le mot de passe temporaire n'a pas été changé.
+  if (user.mustChangePassword) {
+    redirect("/changer-mot-de-passe");
+  }
+
   return user;
 }

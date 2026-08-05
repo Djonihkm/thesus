@@ -59,8 +59,8 @@ export async function changePasswordAction(
   formData: FormData,
 ): Promise<AccountFormState> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "STUDENT") {
-    return { error: "Vous devez être connecté en tant qu'étudiant." };
+  if (!session?.user) {
+    return { error: "Vous devez être connecté." };
   }
 
   const currentPassword = String(formData.get("currentPassword") ?? "");
@@ -89,7 +89,10 @@ export async function changePasswordAction(
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash },
+    // mustChangePassword : sans effet si déjà false (changement volontaire depuis "Mon
+    // compte"), lève l'obligation si ce changement répond à la redirection forcée
+    // (voir requireRole dans src/lib/auth-guard.ts).
+    data: { passwordHash, mustChangePassword: false },
   });
 
   return { success: true };

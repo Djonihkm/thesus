@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/auth/FormField";
 import { FormError } from "@/components/auth/FormError";
@@ -8,8 +9,15 @@ import { changePasswordAction, type AccountFormState } from "@/lib/actions/accou
 
 const initialState: AccountFormState = {};
 
-export function PasswordForm() {
+export function PasswordForm({ redirectTo }: { redirectTo?: string } = {}) {
+  const router = useRouter();
   const [state, formAction, isPending] = useActionState(changePasswordAction, initialState);
+
+  useEffect(() => {
+    if (state.success && redirectTo) {
+      router.push(redirectTo);
+    }
+  }, [state.success, redirectTo, router]);
 
   return (
     <form action={formAction} className="flex flex-col gap-6">

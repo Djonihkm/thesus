@@ -37,7 +37,7 @@ export function MemoireCard({ id, title, status, submittedAt }: MemoireCardProps
 
       <div className="relative z-10 flex shrink-0 items-center gap-2">
         <MemoireStatusBadge status={status} />
-        {status === "FAILED" ? <DeleteMemoireButton memoireId={id} title={title} /> : null}
+        <DeleteMemoireButton memoireId={id} title={title} status={status} />
       </div>
     </div>
   );

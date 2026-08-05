@@ -1,33 +1,14 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Trash2, X } from "lucide-react";
-import { MemoireStatus } from "@prisma/client";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/auth/FormError";
-import { deleteMemoireAction } from "@/lib/actions/memoires";
+import { deleteThemeAction } from "@/lib/actions/themes";
 
-// COMPLETED a bien plus à perdre (rapports générés, quiz, évaluations...) qu'un mémoire
-// PENDING/PROCESSING/FAILED — l'avertissement doit refléter cet enjeu plutôt qu'un
-// message générique identique pour tous les statuts.
-function warningMessage(title: string, status: MemoireStatus): string {
-  if (status === "COMPLETED") {
-    return `« ${title} » a été entièrement traité — la suppression effacera aussi le fichier original, ainsi que les rapports d'audit, anti-plagiat, quiz, simulation de jury et évaluations déjà générés. Cette action est irréversible.`;
-  }
-  return `« ${title} » sera définitivement supprimé, avec le fichier et les données associées. Cette action est irréversible.`;
-}
-
-export function DeleteMemoireButton({
-  memoireId,
-  title,
-  status,
-}: {
-  memoireId: string;
-  title: string;
-  status: MemoireStatus;
-}) {
+export function DeleteThemeButton({ themeId, title }: { themeId: string; title: string }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
@@ -48,9 +29,7 @@ export function DeleteMemoireButton({
     };
   }, [isOpen]);
 
-  function openModal(event: MouseEvent) {
-    event.preventDefault();
-    event.stopPropagation();
+  function openModal() {
     setError(null);
     setIsOpen(true);
   }
@@ -58,7 +37,7 @@ export function DeleteMemoireButton({
   async function handleConfirm() {
     setIsPending(true);
     setError(null);
-    const result = await deleteMemoireAction(memoireId);
+    const result = await deleteThemeAction(themeId);
     setIsPending(false);
     if (result.error) {
       setError(result.error);
@@ -73,20 +52,14 @@ export function DeleteMemoireButton({
       <button
         type="button"
         onClick={openModal}
-        aria-label="Supprimer le mémoire"
-        title="Supprimer le mémoire"
-        className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition hover:bg-flag-soft hover:text-flag"
+        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-medium text-flag transition hover:bg-flag-soft"
       >
-        <Trash2 size={15} />
+        <Trash2 size={14} />
+        Supprimer
       </button>
 
       {isOpen
         ? createPortal(
-            // Rendu dans un portail (document.body) plutôt qu'à l'intérieur de la card :
-            // MemoireCard/MemoireGridCard ont un hover:-translate-y-1, qui crée un
-            // contexte d'empilement CSS — un enfant `position: fixed` y resterait
-            // piégé (positionné par rapport à la card, pas à la fenêtre) au lieu de
-            // couvrir tout l'écran.
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
               onClick={() => !isPending && setIsOpen(false)}
@@ -97,7 +70,7 @@ export function DeleteMemoireButton({
               >
                 <div className="flex items-start justify-between gap-4">
                   <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
-                    Supprimer ce mémoire ?
+                    Supprimer ce thème ?
                   </h2>
                   <button
                     type="button"
@@ -111,7 +84,8 @@ export function DeleteMemoireButton({
                 </div>
 
                 <p className="mt-3 text-sm leading-relaxed text-ink-muted">
-                  {warningMessage(title, status)}
+                  Le thème « {title} » sera définitivement supprimé. Cette action est
+                  irréversible.
                 </p>
 
                 {error ? (

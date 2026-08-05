@@ -5,6 +5,7 @@ import { del, list } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { processMemoire } from "@/lib/memoire-processing";
+import { liveblocks, documentRoomId } from "@/lib/liveblocks";
 import {
   MAX_FILE_SIZE_BYTES,
   fileTypeFromMimeType,
@@ -49,20 +50,19 @@ export async function createMemoireAction(input: {
         "Votre établissement n'est pas encore rattaché à la plateforme. Contactez le support pour débloquer le dépôt de mémoire.",
     };
   }
-  // Le thème doit être choisi/proposé puis validé avant tout dépôt (voir
-  // src/lib/actions/themes.ts) — vérifié ici aussi, pas seulement côté UI, au cas où
-  // l'action serait appelée directement.
-  if (!user.currentTheme || user.currentTheme.status !== "VALIDATED") {
-    return {
-      error: "Choisissez d'abord un thème validé par votre établissement avant de déposer votre mémoire.",
-    };
-  }
 
   const fileType = fileTypeFromMimeType(input.mimeType);
   if (!fileType) {
     return { error: "Type de fichier non pris en charge." };
   }
 
+  // Le dépôt n'est plus conditionné à un thème validé (audit/quiz/anti-plagiat/simulation
+  // de jury sont un usage libre, indépendant du circuit de validation institutionnel) — voir
+  // src/lib/actions/themes.ts. Si l'étudiant a déjà un thème actif, le mémoire s'y rattache
+  // automatiquement ; sinon il reste sans thème et pourra être rattaché après coup (voir
+  // attachCurrentThemeToMemoireAction). currentTheme n'est renseigné que via une demande de
+  // sélection approuvée, donc toujours VALIDATED quand présent — pas besoin de re-vérifier
+  // son statut ici.
   const memoire = await prisma.memoire.create({
     data: {
       title: titleFromFileName(input.fileName),
@@ -70,7 +70,7 @@ export async function createMemoireAction(input: {
       fileType,
       studentId: user.id,
       institutionId: user.institutionId,
-      themeId: user.currentTheme.id,
+      themeId: user.currentTheme?.id ?? null,
     },
   });
 
@@ -84,11 +84,13 @@ export type DeleteMemoireActionState = {
   success?: boolean;
 };
 
-// Suppression réservée aux mémoires en échec (FAILED) : un mémoire qui a réussi (ou est en
-// cours) ne doit pas pouvoir disparaître silencieusement (rapports, évaluations,
-// assignation jury potentiellement associés). Nettoie le fichier original sur Vercel Blob
-// ainsi que les images du document éditable, qui ont pu être générées même en cas
-// d'échec de l'audit (l'extraction/la conversion peut avoir réussi avant l'échec).
+// Suppression ouverte à tous les statuts (plus seulement FAILED) — nécessaire pour
+// nettoyer d'anciens mémoires de test antérieurs au système de thèmes. Seul le
+// propriétaire peut supprimer son mémoire. Le nettoyage couvre : fichier original +
+// images du document sur Vercel Blob, tous les enregistrements liés (rapports, quiz,
+// simulation de jury, évaluations, assignation) puisqu'aucune de ces relations n'a de
+// cascade en base, et la room Liveblocks du document (best-effort, non bloquant — les
+// données de commentaires ne sont stockées que côté Liveblocks, jamais en base ici).
 export async function deleteMemoireAction(memoireId: string): Promise<DeleteMemoireActionState> {
   const session = await auth();
   if (!session?.user || session.user.role !== "STUDENT") {
@@ -98,9 +100,6 @@ export async function deleteMemoireAction(memoireId: string): Promise<DeleteMemo
   const memoire = await prisma.memoire.findUnique({ where: { id: memoireId } });
   if (!memoire || memoire.studentId !== session.user.id) {
     return { error: "Mémoire introuvable." };
-  }
-  if (memoire.status !== "FAILED") {
-    return { error: "Seul un mémoire en échec peut être supprimé." };
   }
 
   try {
@@ -112,10 +111,61 @@ export async function deleteMemoireAction(memoireId: string): Promise<DeleteMemo
     // un fichier orphelin sur Blob est un moindre mal comparé à un mémoire bloqué en base.
   }
 
+  await liveblocks.deleteRoom(documentRoomId(memoireId)).catch(() => {
+    // Best-effort : une room Liveblocks orpheline n'est pas bloquante (voir commentaire
+    // ci-dessus).
+  });
+
   await prisma.$transaction([
     prisma.memoireAssignment.deleteMany({ where: { memoireId } }),
+    prisma.defenseEvaluation.deleteMany({ where: { memoireId } }),
+    prisma.auditReport.deleteMany({ where: { memoireId } }),
+    prisma.plagiarismReport.deleteMany({ where: { memoireId } }),
+    prisma.quizAttempt.deleteMany({ where: { quiz: { memoireId } } }),
+    prisma.quizQuestion.deleteMany({ where: { quiz: { memoireId } } }),
+    prisma.quiz.deleteMany({ where: { memoireId } }),
+    prisma.juryQuestion.deleteMany({ where: { jurySimulation: { memoireId } } }),
+    prisma.jurySimulation.deleteMany({ where: { memoireId } }),
     prisma.memoire.delete({ where: { id: memoireId } }),
   ]);
+
+  return { success: true };
+}
+
+// Rattache le thème actif de l'étudiant à un mémoire déjà déposé sans thème — cas d'un
+// étudiant qui a déposé librement puis obtenu un thème validé ensuite. Ne s'applique qu'à
+// un mémoire encore sans thème (pas de réattribution/écrasement ici) et seulement si un
+// thème actif existe (nécessairement VALIDATED, voir createMemoireAction).
+export async function attachCurrentThemeToMemoireAction(
+  memoireId: string,
+): Promise<MemoireActionState> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "STUDENT") {
+    return { error: "Vous devez être connecté en tant qu'étudiant." };
+  }
+
+  const [memoire, user] = await Promise.all([
+    prisma.memoire.findUnique({ where: { id: memoireId } }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { currentTheme: { select: { id: true } } },
+    }),
+  ]);
+
+  if (!memoire || memoire.studentId !== session.user.id) {
+    return { error: "Mémoire introuvable." };
+  }
+  if (memoire.themeId) {
+    return { error: "Ce mémoire est déjà rattaché à un thème." };
+  }
+  if (!user?.currentTheme) {
+    return { error: "Vous n'avez pas de thème actif à rattacher — choisissez-en un d'abord." };
+  }
+
+  await prisma.memoire.update({
+    where: { id: memoireId },
+    data: { themeId: user.currentTheme.id },
+  });
 
   return { success: true };
 }

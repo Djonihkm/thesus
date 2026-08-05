@@ -100,9 +100,13 @@ export default async function EtablissementMemoiresPage() {
                     </span>
                   ) : memoire.theme?.status === "VALIDATED" ? (
                     <AssignJuryControl memoireId={memoire.id} jurors={suggestions} />
+                  ) : memoire.theme ? (
+                    <span className="text-xs text-ink-muted">
+                      Thème en attente de validation
+                    </span>
                   ) : (
                     <span className="text-xs text-ink-muted">
-                      En attente d&apos;un thème validé
+                      Aucun thème rattaché — assignation indisponible
                     </span>
                   )}
                 </div>

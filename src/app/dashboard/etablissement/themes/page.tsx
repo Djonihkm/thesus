@@ -1,8 +1,10 @@
+import { Lightbulb } from "lucide-react";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
-import { ThemeForm } from "@/components/dashboard/ThemeForm";
-import { ThemeReviewRow } from "@/components/dashboard/ThemeReviewRow";
+import { CreateThemeModal } from "@/components/dashboard/CreateThemeModal";
+import { ThemesListSection } from "@/components/dashboard/ThemesListSection";
+import { ThemeSelectionReviewRow } from "@/components/dashboard/ThemeSelectionReviewRow";
 
 export default async function EtablissementThemesPage() {
   const user = await requireRole("INSTITUTION");
@@ -19,17 +21,34 @@ export default async function EtablissementThemesPage() {
 
   const institutionId = user.institutionId;
 
-  const [validatedThemes, proposedThemes] = await Promise.all([
+  const [themes, pendingSelections] = await Promise.all([
     prisma.theme.findMany({
-      where: { institutionId, status: "VALIDATED" },
+      where: { institutionId },
       orderBy: { createdAt: "desc" },
+      include: {
+        proposedBy: { select: { name: true } },
+        takenBy: { select: { name: true } },
+      },
     }),
-    prisma.theme.findMany({
-      where: { institutionId, status: "PROPOSED" },
+    prisma.themeSelection.findMany({
+      where: { status: "PENDING", theme: { institutionId } },
       orderBy: { createdAt: "asc" },
-      include: { proposedBy: { select: { name: true } } },
+      include: {
+        theme: { select: { title: true, category: true } },
+        student: { select: { name: true, fieldOfStudy: true } },
+      },
     }),
   ]);
+
+  const themeSummaries = themes.map((theme) => ({
+    id: theme.id,
+    title: theme.title,
+    description: theme.description,
+    category: theme.category,
+    status: theme.status,
+    proposedByName: theme.proposedBy?.name ?? null,
+    takenByName: theme.takenBy?.name ?? null,
+  }));
 
   return (
     <>
@@ -37,66 +56,48 @@ export default async function EtablissementThemesPage() {
         eyebrow="Thèmes"
         title="Bibliothèque de thèmes"
         description="Proposez des thèmes de mémoire aux étudiants et validez leurs propositions."
+        actions={themeSummaries.length > 0 ? <CreateThemeModal variant="compact" /> : null}
       />
 
-      {proposedThemes.length > 0 ? (
+      {pendingSelections.length > 0 ? (
         <div className="mt-10">
           <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
-            En attente de validation ({proposedThemes.length})
+            Demandes de choix en attente ({pendingSelections.length})
           </h2>
           <div className="mt-5 flex flex-col gap-3">
-            {proposedThemes.map((theme) => (
-              <ThemeReviewRow
-                key={theme.id}
-                themeId={theme.id}
-                title={theme.title}
-                category={theme.category}
-                description={theme.description}
-                proposedByName={theme.proposedBy?.name ?? "Étudiant"}
+            {pendingSelections.map((selection) => (
+              <ThemeSelectionReviewRow
+                key={selection.id}
+                selectionId={selection.id}
+                themeTitle={selection.theme.title}
+                themeCategory={selection.theme.category}
+                studentName={selection.student.name}
+                studentFieldOfStudy={selection.student.fieldOfStudy}
               />
             ))}
           </div>
         </div>
       ) : null}
 
-      <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
-        <div>
-          <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
-            Thèmes disponibles ({validatedThemes.length})
-          </h2>
-          {validatedThemes.length === 0 ? (
-            <p className="mt-4 text-sm text-ink-muted">
-              Aucun thème validé pour le moment — créez-en un pour que les étudiants puissent le choisir.
-            </p>
-          ) : (
-            <div className="mt-5 flex flex-col gap-3">
-              {validatedThemes.map((theme) => (
-                <div
-                  key={theme.id}
-                  className="rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5"
-                >
-                  <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
-                    {theme.category}
-                  </span>
-                  <h3 className="mt-1 text-base font-medium text-ink">{theme.title}</h3>
-                  {theme.description ? (
-                    <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
-                      {theme.description}
-                    </p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5">
-          <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">Créer un thème</h2>
-          <div className="mt-5">
-            <ThemeForm />
+      {themeSummaries.length === 0 ? (
+        <div className="mt-10 flex flex-col items-center rounded-2xl border border-dashed border-border-neutral bg-surface-light px-6 py-16 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent-dark">
+            <Lightbulb size={20} />
           </div>
+          <h2 className="mt-5 text-lg font-medium tracking-[-0.01em] text-ink">
+            Aucun thème pour le moment
+          </h2>
+          <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-muted">
+            Créez un thème pour que vos étudiants puissent le demander, ou attendez leurs
+            propositions.
+          </p>
+          <CreateThemeModal variant="cta" />
         </div>
-      </div>
+      ) : (
+        <div className="mt-10">
+          <ThemesListSection themes={themeSummaries} />
+        </div>
+      )}
     </>
   );
 }

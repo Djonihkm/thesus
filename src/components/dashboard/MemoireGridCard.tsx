@@ -34,11 +34,9 @@ export function MemoireGridCard({ id, title, status, submittedAt }: MemoireGridC
         <p className="mt-2 text-xs text-ink-muted">Déposé le {dateFormatter.format(submittedAt)}</p>
       </div>
 
-      {status === "FAILED" ? (
-        <div className="relative z-10 mt-4 flex justify-end">
-          <DeleteMemoireButton memoireId={id} title={title} />
-        </div>
-      ) : null}
+      <div className="relative z-10 mt-4 flex justify-end">
+        <DeleteMemoireButton memoireId={id} title={title} status={status} />
+      </div>
     </div>
   );
 }

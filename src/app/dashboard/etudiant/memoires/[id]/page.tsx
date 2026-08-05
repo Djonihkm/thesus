@@ -1,5 +1,6 @@
 // src/app/dashboard/etudiant/memoires/[id]/page.tsx
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Loader2, FileEdit } from "lucide-react";
 import { AuditIcon, PlagiarismIcon, QuizIcon, JuryIcon } from "@/components/icons";
 import { requireRole } from "@/lib/auth-guard";
@@ -7,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { ActionCard } from "@/components/dashboard/ActionCard";
 import { MemoireStatusBadge } from "@/components/dashboard/MemoireStatusBadge";
+import { AttachThemeButton } from "@/components/dashboard/AttachThemeButton";
 import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 import { FormError } from "@/components/auth/FormError";
 import type { ServiceStatus } from "@/lib/dashboard-types";
@@ -44,6 +46,18 @@ export default async function MemoireDetailPage({
   if (!memoire || memoire.studentId !== user.id) {
     notFound();
   }
+
+  // Un thème actif éventuel — pour proposer de rattacher ce mémoire après coup s'il n'en a
+  // pas encore (voir attachCurrentThemeToMemoireAction). Le dépôt lui-même n'a jamais exigé
+  // de thème ; ce rattachement ne conditionne que le suivi jury officiel côté établissement.
+  const activeTheme = memoire.theme
+    ? null
+    : ((
+        await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { currentTheme: { select: { title: true } } },
+        })
+      )?.currentTheme ?? null);
 
   const assignedJuryName =
     memoire.assignments[0]?.status === "VALIDATED" ? memoire.assignments[0].jury.name : null;
@@ -123,7 +137,26 @@ export default async function MemoireDetailPage({
           </span>
           <p className="mt-1 text-sm font-medium text-ink">Thème : {memoire.theme.title}</p>
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-8 rounded-2xl border border-dashed border-border-neutral bg-surface-light p-5">
+          <p className="text-sm font-medium text-ink">Aucun thème rattaché</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            L&apos;analyse (audit, quiz, anti-plagiat, simulation de jury) reste disponible sans
+            thème. Un thème rattaché est seulement nécessaire pour l&apos;assignation à un jury
+            officiel par votre établissement.
+          </p>
+          {activeTheme ? (
+            <AttachThemeButton memoireId={memoire.id} themeTitle={activeTheme.title} />
+          ) : (
+            <Link
+              href="/dashboard/etudiant/themes"
+              className="mt-4 inline-flex items-center rounded-full border border-ink/15 px-4 py-2 text-sm font-medium text-ink transition hover:bg-surface-neutral"
+            >
+              Choisir un thème
+            </Link>
+          )}
+        </div>
+      )}
 
       {isProcessing ? (
         <div className="mt-8 flex items-center gap-3 rounded-2xl border border-accent/20 bg-accent/5 px-5 py-4">

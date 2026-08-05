@@ -17,19 +17,13 @@ import {
   isValidPassword,
   PASSWORD_MIN_LENGTH,
   STUDY_LEVEL_LABELS,
-  JURY_FUNCTION_LABELS,
   type Role,
   type StudyLevel,
-  type JuryFunction,
 } from "@/lib/validation";
 
 const initialState: AuthFormState = {};
 
 const STUDY_LEVEL_OPTIONS = (Object.entries(STUDY_LEVEL_LABELS) as [StudyLevel, string][]).map(
-  ([value, label]) => ({ value, label }),
-);
-
-const JURY_FUNCTION_OPTIONS = (Object.entries(JURY_FUNCTION_LABELS) as [JuryFunction, string][]).map(
   ([value, label]) => ({ value, label }),
 );
 
@@ -51,7 +45,6 @@ export function RegisterForm({
   const [stepError, setStepError] = useState<string | null>(null);
   const [role, setRole] = useState<Role>("STUDENT");
   const [studyLevel, setStudyLevel] = useState<StudyLevel>("LICENCE");
-  const [juryFunction, setJuryFunction] = useState<JuryFunction>("ENSEIGNANT");
   const [stepOne, setStepOne] = useState<StepOneValues>({
     name: "",
     email: "",
@@ -185,23 +178,6 @@ export function RegisterForm({
                 name="studentNumber"
                 type="text"
               />
-            </>
-          ) : null}
-
-          {role === "JURY" ? (
-            <>
-              <InstitutionCombobox label="Établissement de rattachement" institutions={institutions} />
-              <FormField label="Spécialité / domaine d'expertise" name="specialty" type="text" required />
-              <div className="flex flex-col gap-2">
-                <span className="text-sm text-ink-muted">Fonction</span>
-                <TabSelect
-                  ariaLabel="Fonction"
-                  value={juryFunction}
-                  onChange={setJuryFunction}
-                  options={JURY_FUNCTION_OPTIONS}
-                />
-                <input type="hidden" name="juryFunction" value={juryFunction} />
-              </div>
             </>
           ) : null}
 

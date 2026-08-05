@@ -20,15 +20,16 @@ export default async function MemoiresPage() {
     }),
     user.institutionId
       ? getStudentThemeContext(user.id, user.institutionId)
-      : Promise.resolve({ currentTheme: null, availableThemes: [] }),
+      : Promise.resolve({ currentTheme: null, pendingSelection: null, availableThemes: [] }),
   ]);
 
   const hasProcessingMemoire = memoires.some(
     (memoire) => memoire.status === "PENDING" || memoire.status === "PROCESSING",
   );
   const hasAnyMemoire = memoires.length > 0;
-  const isThemeValidated = themeContext.currentTheme?.status === "VALIDATED";
-  const canDeposit = hasAnyMemoire || isThemeValidated;
+  // Le dépôt n'est plus conditionné à un thème (voir createMemoireAction) — seule
+  // l'existence d'un rattachement à l'établissement reste requise.
+  const canDeposit = Boolean(user.institutionId);
 
   return (
     <>
@@ -40,15 +41,24 @@ export default async function MemoiresPage() {
         description={
           canDeposit
             ? "Déposez un mémoire ou consultez le statut de ceux déjà envoyés."
-            : "Un thème validé est nécessaire avant de pouvoir déposer un mémoire."
+            : "Votre établissement n'est pas encore rattaché à la plateforme."
         }
       />
 
       <div className="mt-10">
         {canDeposit ? (
-          <MemoireUploadForm />
+          <div className="flex flex-col gap-6">
+            <ThemeStatusBanner
+              currentTheme={themeContext.currentTheme}
+              pendingSelection={themeContext.pendingSelection}
+            />
+            <MemoireUploadForm />
+          </div>
         ) : (
-          <ThemeStatusBanner currentTheme={themeContext.currentTheme} />
+          <p className="text-sm text-ink-muted">
+            Contactez le support pour rattacher votre compte à un établissement et débloquer le
+            dépôt de mémoire.
+          </p>
         )}
       </div>
 
