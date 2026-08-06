@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
 
 export default async function StudentDocumentPage({
@@ -23,8 +24,21 @@ export default async function StudentDocumentPage({
     redirect(`/dashboard/etudiant/memoires/${memoire.id}`);
   }
 
+  const chatMessages = await prisma.aiChatMessage.findMany({
+    where: { memoireId: memoire.id },
+    orderBy: { createdAt: "asc" },
+  });
+
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Mes mémoires", href: "/dashboard/etudiant/memoires" },
+          { label: memoire.title, href: `/dashboard/etudiant/memoires/${memoire.id}` },
+          { label: "Document" },
+        ]}
+      />
+
       <DashboardHeader
         eyebrow="Document"
         title={memoire.title}
@@ -37,6 +51,12 @@ export default async function StudentDocumentPage({
           mode="edit"
           initialContent={memoire.editableContent ?? "<p></p>"}
           canRegenerate={memoire.fileType === "PDF"}
+          initialChatMessages={chatMessages.map((message) => ({
+            id: message.id,
+            role: message.role,
+            content: message.content,
+            createdAt: message.createdAt.toISOString(),
+          }))}
         />
       </div>
     </>

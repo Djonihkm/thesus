@@ -1,9 +1,9 @@
 // src/app/dashboard/etudiant/memoires/[id]/jury/page.tsx
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { GenerateModuleButton } from "@/components/dashboard/GenerateModuleButton";
 import { JuryQuestionList } from "@/components/dashboard/JuryQuestionList";
 import { generateJuryAction } from "@/lib/actions/jury";
@@ -37,6 +37,14 @@ export default async function JuryPage({
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Mes mémoires", href: "/dashboard/etudiant/memoires" },
+          { label: memoire.title, href: `/dashboard/etudiant/memoires/${memoire.id}` },
+          { label: "Simulation de jury" },
+        ]}
+      />
+
       <DashboardHeader
         eyebrow="Simulation de jury"
         title={memoire.title}
@@ -56,13 +64,6 @@ export default async function JuryPage({
           <JuryQuestionList memoireId={memoire.id} questions={memoire.jurySimulation.questions} />
         )}
       </div>
-
-      <Link
-        href={`/dashboard/etudiant/memoires/${memoire.id}`}
-        className="mt-10 inline-block text-sm font-medium text-accent hover:underline"
-      >
-        ← Retour au mémoire
-      </Link>
     </>
   );
 }

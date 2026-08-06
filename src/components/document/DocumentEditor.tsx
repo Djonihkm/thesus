@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   LiveblocksProvider,
   RoomProvider,
@@ -25,7 +25,7 @@ import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import Image from "@tiptap/extension-image";
-import { Table2, ImagePlus, MessageSquare, X, ArrowRight } from "lucide-react";
+import { Table2, ImagePlus, MessageSquare, Sparkles, X, ArrowRight, ArrowDownToLine, Send } from "lucide-react";
 import { PlagiarismFlag } from "@/lib/tiptap/plagiarism-flag-mark";
 import { AnnotateOnly } from "@/lib/tiptap/annotate-only-plugin";
 import {
@@ -33,6 +33,8 @@ import {
   regenerateDocumentContentAction,
   uploadDocumentImageAction,
 } from "@/lib/actions/document";
+import { sendAiChatMessageAction, type ChatMessageView } from "@/lib/actions/ai-chat";
+import { escapeHtml } from "@/lib/html";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/auth/FormError";
 
@@ -45,6 +47,21 @@ import "@liveblocks/react-tiptap/styles.css";
 // faire défiler la vue depuis le panneau latéral.
 const LIVEBLOCKS_COMMENT_MARK_TYPE = "liveblocksCommentMark";
 
+// Résout le vrai nom d'un auteur de commentaire (userId Liveblocks = User.id) via notre
+// propre API — sans ça, un commentaire dont l'auteur n'est pas présent dans la room en
+// direct (le cas courant : on relit un commentaire après coup) s'affiche sous "Anonymous".
+// Partagé par les deux modes (édition étudiant, annotation jury), une seule room Liveblocks
+// par mémoire.
+async function resolveUsers({ userIds }: { userIds: string[] }) {
+  const response = await fetch("/api/liveblocks-resolve-users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userIds }),
+  });
+  if (!response.ok) return userIds.map(() => undefined);
+  return response.json();
+}
+
 export type DocumentEditorMode = "edit" | "annotate" | "read";
 
 interface DocumentEditorProps {
@@ -52,6 +69,9 @@ interface DocumentEditorProps {
   mode: DocumentEditorMode;
   initialContent: string;
   canRegenerate?: boolean;
+  // Chat IA : uniquement pertinent en mode "edit" (étudiant sur son propre mémoire) — pas de
+  // chat côté jury dans cette itération, voir la note sur showChat plus bas.
+  initialChatMessages?: ChatMessageView[];
 }
 
 export function DocumentEditor({
@@ -59,9 +79,14 @@ export function DocumentEditor({
   mode,
   initialContent,
   canRegenerate = false,
+  initialChatMessages = [],
 }: DocumentEditorProps) {
   return (
-    <LiveblocksProvider authEndpoint="/api/liveblocks-auth" badgeLocation="bottom-left">
+    <LiveblocksProvider
+      authEndpoint="/api/liveblocks-auth"
+      badgeLocation="bottom-left"
+      resolveUsers={resolveUsers}
+    >
       <RoomProvider id={`memoire-${memoireId}`}>
         <ClientSideSuspense fallback={<EditorSkeleton />}>
           <EditorRoom
@@ -69,6 +94,7 @@ export function DocumentEditor({
             mode={mode}
             initialContent={initialContent}
             canRegenerate={canRegenerate}
+            initialChatMessages={initialChatMessages}
           />
         </ClientSideSuspense>
       </RoomProvider>
@@ -84,22 +110,38 @@ function EditorSkeleton() {
   );
 }
 
+type PanelTab = "comments" | "chat";
+
 function EditorRoom({
   memoireId,
   mode,
   initialContent,
   canRegenerate,
+  initialChatMessages,
 }: {
   memoireId: string;
   mode: DocumentEditorMode;
   initialContent: string;
   canRegenerate: boolean;
+  initialChatMessages: ChatMessageView[];
 }) {
   const liveblocksExtension = useLiveblocksExtension({ initialContent });
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const { threads } = useThreads({ query: { resolved: false } });
+
+  // Le chat IA est réservé à l'étudiant sur son propre document (mode "edit" — annotate est
+  // le jury, read n'a pas d'édition possible) : pas d'équivalent côté jury dans cette
+  // itération.
+  const showChat = mode === "edit";
+  const [activeTab, setActiveTab] = useState<PanelTab>("comments");
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  function openChatPanel() {
+    setActiveTab("chat");
+    setMobileOpen(true);
+  }
 
   const editor = useEditor({
     extensions: [
@@ -175,7 +217,9 @@ function EditorRoom({
 
       {error ? <FormError message={error} /> : null}
 
-      {mode === "edit" ? <EditFixedToolbar editor={editor} memoireId={memoireId} /> : null}
+      {mode === "edit" ? (
+        <EditFixedToolbar editor={editor} memoireId={memoireId} onOpenChat={openChatPanel} />
+      ) : null}
 
       {mode === "edit" ? <FloatingToolbar editor={editor} /> : null}
       {mode === "annotate" ? <AnnotateFloatingToolbar editor={editor} /> : null}
@@ -186,12 +230,22 @@ function EditorRoom({
         </div>
 
         {/* Réserve la place de la colonne : le panneau réel est en position fixe (voir
-            CommentsPanel) pour rester scrollable indépendamment du document, sans dépendre
+            EditorSidePanel) pour rester scrollable indépendamment du document, sans dépendre
             du scroll de <main> ni d'un contexte sticky ambigu selon la structure du layout. */}
         <div className="hidden lg:block lg:w-80 lg:shrink-0" aria-hidden="true" />
       </div>
 
-      <CommentsPanel editor={editor} threads={threads} />
+      <EditorSidePanel
+        editor={editor}
+        threads={threads}
+        showChat={showChat}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        mobileOpen={mobileOpen}
+        onMobileOpenChange={setMobileOpen}
+        memoireId={memoireId}
+        initialChatMessages={initialChatMessages}
+      />
 
       {mode !== "read" ? (
         <>
@@ -203,7 +257,15 @@ function EditorRoom({
   );
 }
 
-function EditFixedToolbar({ editor, memoireId }: { editor: Editor | null; memoireId: string }) {
+function EditFixedToolbar({
+  editor,
+  memoireId,
+  onOpenChat,
+}: {
+  editor: Editor | null;
+  memoireId: string;
+  onOpenChat: () => void;
+}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -238,6 +300,8 @@ function EditFixedToolbar({ editor, memoireId }: { editor: Editor | null; memoir
         disabled={isUploading}
         onClick={() => fileInputRef.current?.click()}
       />
+      <Toolbar.Separator />
+      <Toolbar.Button name="Assistant IA" icon={<Sparkles size={16} />} onClick={onOpenChat} />
       <input
         ref={fileInputRef}
         type="file"
@@ -315,16 +379,21 @@ function scrollToCommentThread(editor: Editor | null, threadId: string) {
   element?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-function CommentsPanel({ editor, threads }: { editor: Editor | null; threads: ThreadData[] }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const label = `Commentaires${threads.length > 0 ? ` (${threads.length})` : ""}`;
-
+function CommentsList({
+  editor,
+  threads,
+  onNavigate,
+}: {
+  editor: Editor | null;
+  threads: ThreadData[];
+  onNavigate: () => void;
+}) {
   function goToThread(threadId: string) {
     scrollToCommentThread(editor, threadId);
-    setMobileOpen(false);
+    onNavigate();
   }
 
-  const list = (
+  return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
       {threads.length === 0 ? (
         <p className="px-1 py-2 text-sm text-ink-muted">Aucun commentaire sur ce document.</p>
@@ -348,48 +417,271 @@ function CommentsPanel({ editor, threads }: { editor: Editor | null; threads: Th
       )}
     </div>
   );
+}
+
+function textReplyToHtml(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function AiChatBody({
+  memoireId,
+  editor,
+  initialMessages,
+}: {
+  memoireId: string;
+  editor: Editor | null;
+  initialMessages: ChatMessageView[];
+}) {
+  const [messages, setMessages] = useState<ChatMessageView[]>(initialMessages);
+  const [input, setInput] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, isPending]);
+
+  async function handleSend() {
+    const content = input.trim();
+    if (!content || isPending) return;
+    setInput("");
+    setIsPending(true);
+    setError(null);
+
+    // Bulle utilisateur optimiste — remplacée par l'entrée persistée (avec son vrai id) une
+    // fois l'action revenue, pour ne pas dupliquer si l'étudiant relit vite l'historique.
+    const optimisticId = `optimistic-${Date.now()}`;
+    setMessages((current) => [
+      ...current,
+      { id: optimisticId, role: "USER", content, createdAt: new Date().toISOString() },
+    ]);
+
+    const result = await sendAiChatMessageAction(memoireId, content);
+    setIsPending(false);
+
+    setMessages((current) => {
+      const withoutOptimistic = current.filter((message) => message.id !== optimisticId);
+      const next = [...withoutOptimistic];
+      if (result.userMessage) next.push(result.userMessage);
+      if (result.assistantMessage) next.push(result.assistantMessage);
+      return next;
+    });
+
+    if (result.error) setError(result.error);
+  }
+
+  // Insère la réponse entière, ou seulement la portion sélectionnée par l'étudiant dans la
+  // bulle (sélection native du navigateur) s'il y en a une — jamais automatique, toujours
+  // déclenché par ce bouton.
+  function insertIntoDocument(message: ChatMessageView) {
+    if (!editor) return;
+    const selected = window.getSelection()?.toString().trim();
+    const textToInsert = selected && selected.length > 0 ? selected : message.content;
+    editor.chain().focus().insertContent(textReplyToHtml(textToInsert)).run();
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div ref={listRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+        {messages.length === 0 ? (
+          <p className="px-1 py-2 text-sm text-ink-muted">
+            Posez une question à l&apos;assistant pour co-rédiger votre mémoire — conseils,
+            reformulation, aide à structurer une idée.
+          </p>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                message.role === "USER"
+                  ? "self-end bg-ink text-paper"
+                  : "self-start border border-border-neutral bg-surface-neutral/60 text-ink"
+              }`}
+            >
+              <p className="whitespace-pre-wrap">{message.content}</p>
+              {message.role === "ASSISTANT" ? (
+                <button
+                  type="button"
+                  onClick={() => insertIntoDocument(message)}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent-dark underline decoration-dotted hover:text-accent"
+                >
+                  <ArrowDownToLine size={12} />
+                  Insérer dans le document
+                </button>
+              ) : null}
+            </div>
+          ))
+        )}
+        {isPending ? (
+          <p className="self-start rounded-2xl border border-border-neutral bg-surface-neutral/60 px-3.5 py-2.5 text-sm text-ink-muted">
+            L&apos;assistant réfléchit…
+          </p>
+        ) : null}
+      </div>
+
+      {error ? (
+        <div className="shrink-0 px-3 pb-1">
+          <p className="text-xs text-flag">{error}</p>
+        </div>
+      ) : null}
+
+      <div className="flex shrink-0 items-end gap-2 border-t border-border-neutral p-3">
+        <textarea
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void handleSend();
+            }
+          }}
+          rows={2}
+          placeholder="Posez votre question…"
+          disabled={isPending}
+          className="min-h-0 flex-1 resize-none rounded-lg border border-ink/15 bg-surface-light px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-accent disabled:opacity-60"
+        />
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={isPending || !input.trim()}
+          aria-label="Envoyer"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-paper transition hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Send size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Panneau latéral unique, réutilisant la structure visuelle (position fixe, largeur, tiroir
+// mobile) déjà en place pour les commentaires — mais fonctionnellement distinct : deux
+// contenus interchangeables via un sélecteur d'onglets quand le chat IA est disponible
+// (mode "edit" uniquement), un seul panneau simple sinon (mode "annotate", jury).
+function EditorSidePanel({
+  editor,
+  threads,
+  showChat,
+  activeTab,
+  onTabChange,
+  mobileOpen,
+  onMobileOpenChange,
+  memoireId,
+  initialChatMessages,
+}: {
+  editor: Editor | null;
+  threads: ThreadData[];
+  showChat: boolean;
+  activeTab: PanelTab;
+  onTabChange: (tab: PanelTab) => void;
+  mobileOpen: boolean;
+  onMobileOpenChange: (open: boolean) => void;
+  memoireId: string;
+  initialChatMessages: ChatMessageView[];
+}) {
+  const commentsLabel = `Commentaires${threads.length > 0 ? ` (${threads.length})` : ""}`;
+  const resolvedTab: PanelTab = showChat ? activeTab : "comments";
+
+  function closeMobile() {
+    onMobileOpenChange(false);
+  }
+
+  function renderHeader(onClose?: () => void) {
+    if (!showChat) {
+      return (
+        <div className="flex shrink-0 items-center justify-between border-b border-border-neutral px-4 py-3">
+          <span className="text-sm font-medium text-ink">{commentsLabel}</span>
+          {onClose ? (
+            <button type="button" onClick={onClose} aria-label="Fermer le panneau" className="text-ink-muted hover:text-ink">
+              <X size={18} />
+            </button>
+          ) : null}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex shrink-0 items-center border-b border-border-neutral">
+        <button
+          type="button"
+          onClick={() => onTabChange("comments")}
+          className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+            resolvedTab === "comments"
+              ? "border-b-2 border-ink text-ink"
+              : "text-ink-muted hover:text-ink"
+          }`}
+        >
+          {commentsLabel}
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange("chat")}
+          className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+            resolvedTab === "chat"
+              ? "border-b-2 border-ink text-ink"
+              : "text-ink-muted hover:text-ink"
+          }`}
+        >
+          Assistant IA
+        </button>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer le panneau"
+            className="shrink-0 px-3 text-ink-muted hover:text-ink"
+          >
+            <X size={18} />
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  const body =
+    resolvedTab === "chat" ? (
+      <AiChatBody memoireId={memoireId} editor={editor} initialMessages={initialChatMessages} />
+    ) : (
+      <CommentsList editor={editor} threads={threads} onNavigate={closeMobile} />
+    );
+
+  const floatingLabel = resolvedTab === "chat" ? "Assistant IA" : commentsLabel;
+  const FloatingIcon = resolvedTab === "chat" ? Sparkles : MessageSquare;
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setMobileOpen(true)}
+        onClick={() => onMobileOpenChange(true)}
         className="fixed bottom-6 right-6 z-30 inline-flex items-center gap-2 rounded-full border border-border-neutral bg-surface-light px-4 py-2.5 text-sm font-medium text-ink shadow-lg lg:hidden"
       >
-        <MessageSquare size={16} />
-        {label}
+        <FloatingIcon size={16} />
+        {floatingLabel}
       </button>
 
       {/* Position fixe (et non sticky) : indépendante du scroll de <main> et de la
           structure de layout parente, pour garantir un panneau qui reste à l'écran et
           scroll séparément du document, quoi qu'il arrive au-dessus dans l'arbre. */}
       <aside className="hidden lg:fixed lg:top-24 lg:right-6 lg:bottom-6 lg:z-30 lg:flex lg:w-80 lg:flex-col lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border-neutral lg:bg-surface-light lg:shadow-lg">
-        <div className="shrink-0 border-b border-border-neutral px-4 py-3 text-sm font-medium text-ink">
-          {label}
-        </div>
-        {list}
+        {renderHeader()}
+        {body}
       </aside>
 
       {mobileOpen ? (
         <div className="fixed inset-0 z-40 flex justify-end lg:hidden">
           <button
             type="button"
-            aria-label="Fermer le panneau de commentaires"
-            onClick={() => setMobileOpen(false)}
+            aria-label="Fermer le panneau"
+            onClick={closeMobile}
             className="absolute inset-0 bg-ink/40"
           />
           <div className="relative flex h-full w-80 max-w-[85vw] flex-col bg-surface-light shadow-xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-border-neutral px-4 py-3">
-              <span className="text-sm font-medium text-ink">{label}</span>
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="text-ink-muted hover:text-ink"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            {list}
+            {renderHeader(closeMobile)}
+            {body}
           </div>
         </div>
       ) : null}

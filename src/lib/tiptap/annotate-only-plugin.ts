@@ -9,6 +9,7 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
+import { ySyncPluginKey } from "y-prosemirror";
 
 export const AnnotateOnly = Extension.create({
   name: "annotateOnly",
@@ -22,6 +23,17 @@ export const AnnotateOnly = Extension.create({
           // interne, synchronisation Yjs de métadonnées) n'ont pas de steps : toujours
           // autorisées.
           if (tr.steps.length === 0) return true;
+
+          // Une transaction issue de la synchronisation Yjs (contenu distant appliqué par
+          // y-prosemirror, tagué isChangeOrigin — voir _typeChanged dans
+          // y-prosemirror/src/plugins/sync-plugin.js) n'est pas une édition locale du
+          // jury : c'est le document initial qui se charge à l'ouverture de la room, ou une
+          // modification de l'étudiant qui arrive en direct. La bloquer comme une frappe
+          // locale empêchait le document de s'afficher du tout côté jury (la toute première
+          // synchronisation étant elle-même un remplacement de contenu, jamais un simple
+          // AddMark/RemoveMark).
+          const ySyncMeta = tr.getMeta(ySyncPluginKey) as { isChangeOrigin?: boolean } | undefined;
+          if (ySyncMeta?.isChangeOrigin) return true;
 
           return tr.steps.every(
             (step) => step instanceof AddMarkStep || step instanceof RemoveMarkStep,

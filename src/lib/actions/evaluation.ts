@@ -74,6 +74,7 @@ export async function submitEvaluationAction(
   revalidatePath(`/dashboard/jury/memoires/${memoireId}`);
   revalidatePath("/dashboard/jury/memoires");
   revalidatePath("/dashboard/jury");
+  revalidatePath("/dashboard/jury/grilles");
   revalidatePath("/dashboard/etudiant/evaluation");
 
   return { success: true };

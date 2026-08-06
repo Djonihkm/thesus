@@ -1,9 +1,9 @@
 // src/app/dashboard/etudiant/memoires/[id]/audit/page.tsx
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { ScoreBar } from "@/components/dashboard/ScoreBar";
 import type { AuditRecommendation } from "@/lib/audit";
 
@@ -40,6 +40,14 @@ export default async function AuditReportPage({
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Mes mémoires", href: "/dashboard/etudiant/memoires" },
+          { label: memoire.title, href: `/dashboard/etudiant/memoires/${memoire.id}` },
+          { label: "Audit" },
+        ]}
+      />
+
       <DashboardHeader
         eyebrow="Rapport d'audit"
         title={memoire.title}
@@ -77,13 +85,6 @@ export default async function AuditReportPage({
           ))}
         </div>
       </div>
-
-      <Link
-        href={`/dashboard/etudiant/memoires/${memoire.id}`}
-        className="mt-8 inline-block text-sm font-medium text-accent hover:underline"
-      >
-        ← Retour au mémoire
-      </Link>
     </>
   );
 }

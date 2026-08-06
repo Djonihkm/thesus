@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
 
 export default async function JuryDocumentPage({
@@ -28,6 +29,14 @@ export default async function JuryDocumentPage({
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Mémoires", href: "/dashboard/jury/memoires" },
+          { label: memoire.title, href: `/dashboard/jury/memoires/${memoire.id}` },
+          { label: "Document" },
+        ]}
+      />
+
       <DashboardHeader
         eyebrow="Document"
         title={memoire.title}

@@ -26,6 +26,16 @@ enum FileType {
   DOCX
 }
 
+enum MemoireSource {
+  UPLOADED
+  DRAFTED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
 enum QuestionType {
   QCU
   VRAI_FAUX
@@ -68,6 +78,17 @@ enum AssignmentStatus {
 }
 
 enum ThemeSelectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ThemeClosureReason {
+  COMPLETED
+  ABANDONED
+}
+
+enum ThemeClosureStatus {
   PENDING
   APPROVED
   REJECTED
@@ -139,6 +160,7 @@ model User {
   // takenByUserId vit sur Theme).
   takenThemes     Theme[]           @relation("ThemeTakenBy")
   themeSelections ThemeSelection[]
+  themeClosures   ThemeClosureRequest[]
 }
 
 model AuthToken {
@@ -157,8 +179,16 @@ model AuthToken {
 model Memoire {
   id            String        @id @default(cuid())
   title         String
-  fileUrl       String
-  fileType      FileType
+  // Nullables : un mémoire DRAFTED (rédigé directement dans l'éditeur, voir source
+  // ci-dessous) n'a jamais de fichier source — toujours renseignés ensemble pour un
+  // mémoire UPLOADED, toujours absents ensemble pour un DRAFTED.
+  fileUrl       String?
+  fileType      FileType?
+  // Origine du mémoire : déposé par upload (comportement historique, passe par
+  // processMemoire) ou rédigé à partir de zéro dans l'éditeur (status directement
+  // COMPLETED à la création, editableContent pré-rempli d'un squelette — voir
+  // createDraftMemoireAction). Champ technique, jamais montré à l'étudiant.
+  source        MemoireSource @default(UPLOADED)
   status        MemoireStatus @default(PENDING)
   extractedText String?       @db.Text
   errorMessage  String?
@@ -190,6 +220,21 @@ model Memoire {
   jurySimulation   JurySimulation?
   evaluations      DefenseEvaluation[]
   assignments      MemoireAssignment[]
+  aiChatMessages   AiChatMessage[]
+}
+
+// Historique de la conversation avec l'assistant IA de co-rédaction, dans l'éditeur de
+// document — un mémoire = un fil de discussion continu (pas de notion de "session" séparée).
+// Étudiant uniquement (voir sendAiChatMessageAction) ; jamais montré au jury.
+model AiChatMessage {
+  id        String   @id @default(cuid())
+  memoireId String
+  memoire   Memoire  @relation(fields: [memoireId], references: [id])
+  role      ChatRole
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([memoireId, createdAt])
 }
 
 model Theme {
@@ -221,8 +266,9 @@ model Theme {
   updatedAt DateTime @updatedAt
 
   memoires        Memoire[]
-  currentByUsers  User[]           @relation("StudentCurrentTheme")
+  currentByUsers  User[]                @relation("StudentCurrentTheme")
   selections      ThemeSelection[]
+  closureRequests ThemeClosureRequest[]
 }
 
 // Demande d'un étudiant pour obtenir un thème déjà VALIDATED (établissement ou son propre
@@ -239,6 +285,29 @@ model ThemeSelection {
   status    ThemeSelectionStatus @default(PENDING)
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
+
+  @@index([themeId, status])
+  @@index([studentId, status])
+}
+
+// Demande de clôture d'un thème actif par l'étudiant qui le détient (Theme.takenByUserId) —
+// COMPLETED (terminé/soutenu) ou ABANDONED, soumise à validation établissement comme le
+// reste du système de thèmes. Le thème reste actif/utilisable tant que la demande est
+// PENDING. À l'approbation (voir approveThemeClosureAction) : COMPLETED laisse
+// Theme.takenByUserId inchangé (indisponible pour toujours) tandis qu'ABANDONED le remet à
+// null (redevient disponible) ; dans les deux cas User.currentThemeId de l'étudiant repasse
+// à null. Ne touche jamais Memoire.themeId ni MemoireAssignment — les mémoires déjà déposés
+// sous ce thème gardent leur lien et leur éventuelle assignation jury intacts.
+model ThemeClosureRequest {
+  id        String              @id @default(cuid())
+  themeId   String
+  theme     Theme               @relation(fields: [themeId], references: [id])
+  studentId String
+  student   User                @relation(fields: [studentId], references: [id])
+  reason    ThemeClosureReason
+  status    ThemeClosureStatus  @default(PENDING)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 
   @@index([themeId, status])
   @@index([studentId, status])

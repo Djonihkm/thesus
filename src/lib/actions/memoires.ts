@@ -5,6 +5,7 @@ import { del, list } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { processMemoire } from "@/lib/memoire-processing";
+import { buildDraftSkeleton } from "@/lib/memoire-draft";
 import { liveblocks, documentRoomId } from "@/lib/liveblocks";
 import {
   MAX_FILE_SIZE_BYTES,
@@ -24,6 +25,9 @@ export async function createMemoireAction(input: {
   fileName: string;
   mimeType: string;
   size: number;
+  // Par défaut true (comportement historique) — l'étudiant peut décocher le rattachement
+  // dans l'UI pour créer volontairement un mémoire indépendant de son thème actif.
+  linkToActiveTheme?: boolean;
 }): Promise<MemoireActionState> {
   const session = await auth();
   if (!session?.user || session.user.role !== "STUDENT") {
@@ -58,11 +62,13 @@ export async function createMemoireAction(input: {
 
   // Le dépôt n'est plus conditionné à un thème validé (audit/quiz/anti-plagiat/simulation
   // de jury sont un usage libre, indépendant du circuit de validation institutionnel) — voir
-  // src/lib/actions/themes.ts. Si l'étudiant a déjà un thème actif, le mémoire s'y rattache
-  // automatiquement ; sinon il reste sans thème et pourra être rattaché après coup (voir
+  // src/lib/actions/themes.ts. Si l'étudiant a un thème actif et n'a pas explicitement
+  // décoché le rattachement dans l'UI, le mémoire s'y rattache automatiquement ; sinon il
+  // reste sans thème et pourra être rattaché après coup (voir
   // attachCurrentThemeToMemoireAction). currentTheme n'est renseigné que via une demande de
   // sélection approuvée, donc toujours VALIDATED quand présent — pas besoin de re-vérifier
   // son statut ici.
+  const shouldLinkTheme = input.linkToActiveTheme ?? true;
   const memoire = await prisma.memoire.create({
     data: {
       title: titleFromFileName(input.fileName),
@@ -70,11 +76,61 @@ export async function createMemoireAction(input: {
       fileType,
       studentId: user.id,
       institutionId: user.institutionId,
-      themeId: user.currentTheme?.id ?? null,
+      themeId: shouldLinkTheme ? (user.currentTheme?.id ?? null) : null,
     },
   });
 
   after(() => processMemoire(memoire.id));
+
+  return { success: true, memoireId: memoire.id };
+}
+
+// Étudiant : démarre un mémoire vide directement dans l'éditeur, sans fichier source — même
+// parcours découplé du thème que le dépôt par upload (accessible avec ou sans thème actif).
+// Pas de fichier à traiter, donc pas de processMemoire ni de statut PENDING/PROCESSING
+// intermédiaire : le mémoire est directement COMPLETED, avec un squelette de départ dans
+// editableContent, prêt à ouvrir dans l'éditeur immédiatement après création.
+export async function createDraftMemoireAction(input: {
+  title: string;
+  // Par défaut true (comportement historique) — voir createMemoireAction.
+  linkToActiveTheme?: boolean;
+}): Promise<MemoireActionState> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "STUDENT") {
+    return { error: "Vous devez être connecté en tant qu'étudiant pour créer un mémoire." };
+  }
+
+  const title = input.title.trim();
+  if (!title) {
+    return { error: "Indiquez un titre pour votre mémoire." };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    include: { currentTheme: true },
+  });
+  if (!user) {
+    return { error: "Compte introuvable." };
+  }
+  if (!user.institutionId) {
+    return {
+      error:
+        "Votre établissement n'est pas encore rattaché à la plateforme. Contactez le support pour débloquer la création de mémoire.",
+    };
+  }
+
+  const shouldLinkTheme = input.linkToActiveTheme ?? true;
+  const memoire = await prisma.memoire.create({
+    data: {
+      title,
+      source: "DRAFTED",
+      status: "COMPLETED",
+      studentId: user.id,
+      institutionId: user.institutionId,
+      themeId: shouldLinkTheme ? (user.currentTheme?.id ?? null) : null,
+      editableContent: buildDraftSkeleton(title),
+    },
+  });
 
   return { success: true, memoireId: memoire.id };
 }
@@ -104,8 +160,13 @@ export async function deleteMemoireAction(memoireId: string): Promise<DeleteMemo
 
   try {
     const documentImages = await list({ prefix: `memoires/${memoireId}/images/` });
-    const urlsToDelete = [memoire.fileUrl, ...documentImages.blobs.map((blob) => blob.url)];
-    await del(urlsToDelete);
+    // memoire.fileUrl est absent pour un mémoire DRAFTED (jamais de fichier source).
+    const urlsToDelete = [memoire.fileUrl, ...documentImages.blobs.map((blob) => blob.url)].filter(
+      (url): url is string => Boolean(url),
+    );
+    if (urlsToDelete.length > 0) {
+      await del(urlsToDelete);
+    }
   } catch {
     // Le nettoyage du stockage ne doit pas empêcher la suppression de l'enregistrement —
     // un fichier orphelin sur Blob est un moindre mal comparé à un mémoire bloqué en base.

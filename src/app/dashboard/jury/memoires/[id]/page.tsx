@@ -1,9 +1,9 @@
 // src/app/dashboard/jury/memoires/[id]/page.tsx
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { EvaluationForm } from "@/components/dashboard/EvaluationForm";
 import { DocumentViewerModal } from "@/components/dashboard/DocumentViewerModal";
 import { Button } from "@/components/ui/Button";
@@ -55,17 +55,26 @@ export default async function JuryMemoireDetailPage({
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Mémoires", href: "/dashboard/jury/memoires" },
+          { label: memoire.title },
+        ]}
+      />
+
       <DashboardHeader
         eyebrow="Évaluation de soutenance"
         title={memoire.title}
         description={`${memoire.student.name} · déposé le ${dateFormatter.format(memoire.submittedAt)}`}
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <DocumentViewerModal
-              documentUrl={`/api/jury/memoires/${memoire.id}/document`}
-              title={memoire.title}
-              fileType={memoire.fileType}
-            />
+            {memoire.fileUrl && memoire.fileType ? (
+              <DocumentViewerModal
+                documentUrl={`/api/jury/memoires/${memoire.id}/document`}
+                title={memoire.title}
+                fileType={memoire.fileType}
+              />
+            ) : null}
             <Button
               href={`/dashboard/jury/memoires/${memoire.id}/document`}
               variant="outline"
@@ -100,13 +109,6 @@ export default async function JuryMemoireDetailPage({
           />
         </div>
       </div>
-
-      <Link
-        href="/dashboard/jury/memoires"
-        className="mt-8 inline-block text-sm font-medium text-accent hover:underline"
-      >
-        ← Retour aux mémoires
-      </Link>
     </>
   );
 }

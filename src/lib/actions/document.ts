@@ -63,7 +63,7 @@ export async function regenerateDocumentContentAction(
     return { error: "Mémoire introuvable." };
   }
 
-  if (memoire.fileType !== "PDF") {
+  if (memoire.fileType !== "PDF" || !memoire.fileUrl) {
     return { error: "La régénération n'est nécessaire que pour les dépôts PDF." };
   }
 

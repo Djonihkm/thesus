@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { signIn, signOut, EmailNotVerifiedError } from "@/lib/auth";
-import { createAuthToken, consumeAuthToken } from "@/lib/tokens";
+import { createAuthToken, consumeAuthToken, getSecondsUntilResendAllowed } from "@/lib/tokens";
 import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/email";
 import {
   isValidEmail,
@@ -223,6 +223,42 @@ export async function registerAction(
   return { success: true };
 }
 
+// Renvoie l'email de vérification depuis l'écran "Vérifiez votre boîte mail" post-inscription
+// — l'email est celui déjà saisi à l'étape 1 du formulaire, pas resaisi par l'utilisateur.
+// Ne révèle jamais rien sur l'état du compte dans la réponse (compte inexistant, déjà
+// vérifié, ou cooldown actif renvoient tous le même succès générique, sans email envoyé) —
+// même posture anti-fuite que le mot de passe oublié ci-dessous ; seul un échec technique
+// d'envoi est signalé, pour rester cohérent avec la même règle appliquée au renvoi de
+// réinitialisation de mot de passe.
+export async function resendVerificationEmailAction(email: string): Promise<AuthFormState> {
+  const genericSuccess: AuthFormState = { success: true };
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!isValidEmail(normalizedEmail)) {
+    return genericSuccess;
+  }
+
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (!user || user.emailVerified) {
+    return genericSuccess;
+  }
+
+  const cooldownRemaining = await getSecondsUntilResendAllowed(user.id, "EMAIL_VERIFICATION");
+  if (cooldownRemaining > 0) {
+    return genericSuccess;
+  }
+
+  const token = await createAuthToken(user.id, "EMAIL_VERIFICATION");
+
+  try {
+    await sendVerificationEmail(user.email, user.name, token);
+  } catch (error) {
+    console.error("Échec du renvoi de l'email de vérification :", error);
+  }
+
+  return genericSuccess;
+}
+
 export async function loginAction(
   _prevState: AuthFormState,
   formData: FormData,
@@ -263,22 +299,19 @@ export async function signOutAction() {
   await signOut({ redirectTo: "/" });
 }
 
-export async function requestPasswordResetAction(
-  _prevState: AuthFormState,
-  formData: FormData,
-): Promise<AuthFormState> {
-  const email = String(formData.get("email") ?? "")
-    .trim()
-    .toLowerCase();
-
+// Logique commune à la demande initiale et au renvoi : ne révèle jamais si le compte existe
+// (même réponse générique dans tous les cas — compte inexistant, cooldown actif, ou échec
+// technique d'envoi), pour ne pas offrir un moyen d'énumérer les emails inscrits.
+async function sendPasswordResetIfDue(email: string): Promise<AuthFormState> {
   const genericSuccess: AuthFormState = { success: true };
-
-  if (!isValidEmail(email)) {
-    return { error: "Cette adresse email ne semble pas valide." };
-  }
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
+    return genericSuccess;
+  }
+
+  const cooldownRemaining = await getSecondsUntilResendAllowed(user.id, "PASSWORD_RESET");
+  if (cooldownRemaining > 0) {
     return genericSuccess;
   }
 
@@ -288,10 +321,35 @@ export async function requestPasswordResetAction(
     await sendPasswordResetEmail(user.email, user.name, token);
   } catch (error) {
     console.error("Échec de l'envoi de l'email de réinitialisation :", error);
-    return genericSuccess;
   }
 
   return genericSuccess;
+}
+
+export async function requestPasswordResetAction(
+  _prevState: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!isValidEmail(email)) {
+    return { error: "Cette adresse email ne semble pas valide." };
+  }
+
+  return sendPasswordResetIfDue(email);
+}
+
+// Renvoie le lien de réinitialisation depuis l'écran "Vérifiez votre boîte mail" — même
+// email que celui déjà saisi dans le formulaire, appelé directement (pas de FormData).
+export async function resendPasswordResetAction(email: string): Promise<AuthFormState> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!isValidEmail(normalizedEmail)) {
+    return { success: true };
+  }
+
+  return sendPasswordResetIfDue(normalizedEmail);
 }
 
 export async function resetPasswordAction(

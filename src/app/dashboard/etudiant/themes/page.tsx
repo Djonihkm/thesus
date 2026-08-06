@@ -18,10 +18,11 @@ export default async function EtudiantThemesPage() {
     );
   }
 
-  const [{ currentTheme, pendingSelection, availableThemes }, myRequests] = await Promise.all([
-    getStudentThemeContext(user.id, user.institutionId),
-    getStudentThemeRequests(user.id),
-  ]);
+  const [{ currentTheme, pendingSelection, pendingClosure, availableThemes }, myRequests] =
+    await Promise.all([
+      getStudentThemeContext(user.id, user.institutionId),
+      getStudentThemeRequests(user.id),
+    ]);
 
   return (
     <>
@@ -33,7 +34,11 @@ export default async function EtudiantThemesPage() {
 
       {currentTheme || pendingSelection ? (
         <div className="mt-8">
-          <ThemeStatusBanner currentTheme={currentTheme} pendingSelection={pendingSelection} />
+          <ThemeStatusBanner
+            currentTheme={currentTheme}
+            pendingSelection={pendingSelection}
+            pendingClosure={pendingClosure}
+          />
         </div>
       ) : null}
 

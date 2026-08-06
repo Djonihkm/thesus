@@ -20,7 +20,12 @@ export default async function MemoiresPage() {
     }),
     user.institutionId
       ? getStudentThemeContext(user.id, user.institutionId)
-      : Promise.resolve({ currentTheme: null, pendingSelection: null, availableThemes: [] }),
+      : Promise.resolve({
+          currentTheme: null,
+          pendingSelection: null,
+          pendingClosure: null,
+          availableThemes: [],
+        }),
   ]);
 
   const hasProcessingMemoire = memoires.some(
@@ -51,8 +56,9 @@ export default async function MemoiresPage() {
             <ThemeStatusBanner
               currentTheme={themeContext.currentTheme}
               pendingSelection={themeContext.pendingSelection}
+              pendingClosure={themeContext.pendingClosure}
             />
-            <MemoireUploadForm />
+            <MemoireUploadForm activeThemeTitle={themeContext.currentTheme?.title ?? null} />
           </div>
         ) : (
           <p className="text-sm text-ink-muted">

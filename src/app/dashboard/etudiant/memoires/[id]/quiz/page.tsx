@@ -1,9 +1,9 @@
 // src/app/dashboard/etudiant/memoires/[id]/quiz/page.tsx
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { GenerateModuleButton } from "@/components/dashboard/GenerateModuleButton";
 import { QuizForm } from "@/components/dashboard/QuizForm";
 import { generateQuizAction } from "@/lib/actions/quiz";
@@ -48,6 +48,14 @@ export default async function QuizPage({
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Mes mémoires", href: "/dashboard/etudiant/memoires" },
+          { label: memoire.title, href: `/dashboard/etudiant/memoires/${memoire.id}` },
+          { label: "Quiz" },
+        ]}
+      />
+
       <DashboardHeader
         eyebrow="Quiz personnalisé"
         title={memoire.title}
@@ -98,13 +106,6 @@ export default async function QuizPage({
           />
         </div>
       )}
-
-      <Link
-        href={`/dashboard/etudiant/memoires/${memoire.id}`}
-        className="mt-10 inline-block text-sm font-medium text-accent hover:underline"
-      >
-        ← Retour au mémoire
-      </Link>
     </>
   );
 }

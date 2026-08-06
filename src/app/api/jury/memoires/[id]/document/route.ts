@@ -48,6 +48,15 @@ export async function GET(
     return NextResponse.json({ error: "Mémoire introuvable." }, { status: 404 });
   }
 
+  // Un mémoire DRAFTED (rédigé directement dans l'éditeur) n'a pas de fichier source à
+  // consulter ici — seul son contenu éditable existe (voir "Annoter le document").
+  if (!memoire.fileUrl || !memoire.fileType) {
+    return NextResponse.json(
+      { error: "Ce mémoire a été rédigé directement en ligne, sans fichier original." },
+      { status: 404 },
+    );
+  }
+
   let buffer: Buffer;
   try {
     buffer = await fetchBlobBuffer(memoire.fileUrl);

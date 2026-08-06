@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { MemoireStatusBadge } from "@/components/dashboard/MemoireStatusBadge";
 import { getInstitutionJuryWorkload } from "@/lib/jury-workload";
 
@@ -45,6 +45,13 @@ export default async function EtablissementJuryDetailPage({
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Jurys", href: "/dashboard/etablissement/jurys" },
+          { label: jury.name },
+        ]}
+      />
+
       <DashboardHeader
         eyebrow="Jurys"
         title={jury.name}
@@ -75,13 +82,6 @@ export default async function EtablissementJuryDetailPage({
           ))}
         </div>
       )}
-
-      <Link
-        href="/dashboard/etablissement/jurys"
-        className="mt-8 inline-block text-sm font-medium text-accent hover:underline"
-      >
-        ← Retour aux jurys
-      </Link>
     </>
   );
 }

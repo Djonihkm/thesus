@@ -12,6 +12,12 @@ export interface PendingThemeSelection {
   theme: { id: string; title: string; category: string };
 }
 
+export interface PendingThemeClosure {
+  id: string;
+  reason: "COMPLETED" | "ABANDONED";
+  theme: { id: string; title: string; category: string };
+}
+
 export interface AvailableTheme {
   id: string;
   title: string;
@@ -22,6 +28,7 @@ export interface AvailableTheme {
 export interface StudentThemeContext {
   currentTheme: StudentCurrentTheme | null;
   pendingSelection: PendingThemeSelection | null;
+  pendingClosure: PendingThemeClosure | null;
   availableThemes: AvailableTheme[];
 }
 
@@ -29,7 +36,7 @@ export async function getStudentThemeContext(
   userId: string,
   institutionId: string,
 ): Promise<StudentThemeContext> {
-  const [student, pendingSelection, availableThemes] = await Promise.all([
+  const [student, pendingSelection, pendingClosure, availableThemes] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -40,6 +47,15 @@ export async function getStudentThemeContext(
       where: { studentId: userId, status: "PENDING" },
       orderBy: { createdAt: "desc" },
       select: { id: true, theme: { select: { id: true, title: true, category: true } } },
+    }),
+    prisma.themeClosureRequest.findFirst({
+      where: { studentId: userId, status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        reason: true,
+        theme: { select: { id: true, title: true, category: true } },
+      },
     }),
     // Un thème n'est "disponible" dans Parcourir que s'il est validé, pas déjà pris,
     // proposé par l'établissement (jamais par un autre étudiant — confidentialité), et
@@ -61,6 +77,7 @@ export async function getStudentThemeContext(
   return {
     currentTheme: student?.currentTheme ?? null,
     pendingSelection,
+    pendingClosure,
     availableThemes,
   };
 }

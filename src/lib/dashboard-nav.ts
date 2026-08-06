@@ -55,6 +55,7 @@ const JURY_NAV: NavItem[] = [
   { label: "Tableau de bord", href: "/dashboard/jury", icon: LayoutDashboard },
   { label: "Mémoires à évaluer", href: "/dashboard/jury/memoires", icon: FileText },
   { label: "Grilles de notation", href: "/dashboard/jury/grilles", icon: ClipboardCheck },
+  { label: "Mon compte", href: "/dashboard/jury/mon-compte", icon: UserCircle },
 ];
 
 const INSTITUTION_NAV: NavItem[] = [

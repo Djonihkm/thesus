@@ -5,6 +5,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { CreateThemeModal } from "@/components/dashboard/CreateThemeModal";
 import { ThemesListSection } from "@/components/dashboard/ThemesListSection";
 import { ThemeSelectionReviewRow } from "@/components/dashboard/ThemeSelectionReviewRow";
+import { ThemeClosureReviewRow } from "@/components/dashboard/ThemeClosureReviewRow";
 
 export default async function EtablissementThemesPage() {
   const user = await requireRole("INSTITUTION");
@@ -21,7 +22,7 @@ export default async function EtablissementThemesPage() {
 
   const institutionId = user.institutionId;
 
-  const [themes, pendingSelections] = await Promise.all([
+  const [themes, pendingSelections, pendingClosures] = await Promise.all([
     prisma.theme.findMany({
       where: { institutionId },
       orderBy: { createdAt: "desc" },
@@ -36,6 +37,14 @@ export default async function EtablissementThemesPage() {
       include: {
         theme: { select: { title: true, category: true } },
         student: { select: { name: true, fieldOfStudy: true } },
+      },
+    }),
+    prisma.themeClosureRequest.findMany({
+      where: { status: "PENDING", theme: { institutionId } },
+      orderBy: { createdAt: "asc" },
+      include: {
+        theme: { select: { title: true, category: true } },
+        student: { select: { name: true } },
       },
     }),
   ]);
@@ -73,6 +82,26 @@ export default async function EtablissementThemesPage() {
                 themeCategory={selection.theme.category}
                 studentName={selection.student.name}
                 studentFieldOfStudy={selection.student.fieldOfStudy}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {pendingClosures.length > 0 ? (
+        <div className="mt-10">
+          <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
+            Demandes de clôture en attente ({pendingClosures.length})
+          </h2>
+          <div className="mt-5 flex flex-col gap-3">
+            {pendingClosures.map((closure) => (
+              <ThemeClosureReviewRow
+                key={closure.id}
+                closureId={closure.id}
+                themeTitle={closure.theme.title}
+                themeCategory={closure.theme.category}
+                studentName={closure.student.name}
+                reason={closure.reason}
               />
             ))}
           </div>

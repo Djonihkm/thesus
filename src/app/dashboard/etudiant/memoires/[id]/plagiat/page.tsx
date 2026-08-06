@@ -1,10 +1,10 @@
 // src/app/dashboard/etudiant/memoires/[id]/plagiat/page.tsx
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import type { PlagiarismMatch } from "@/lib/plagiarism";
 
 export default async function PlagiarismReportPage({
@@ -34,6 +34,14 @@ export default async function PlagiarismReportPage({
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Mes mémoires", href: "/dashboard/etudiant/memoires" },
+          { label: memoire.title, href: `/dashboard/etudiant/memoires/${memoire.id}` },
+          { label: "Anti-plagiat" },
+        ]}
+      />
+
       <DashboardHeader
         eyebrow="Rapport anti-plagiat"
         title={memoire.title}
@@ -81,13 +89,6 @@ export default async function PlagiarismReportPage({
           </div>
         )}
       </div>
-
-      <Link
-        href={`/dashboard/etudiant/memoires/${memoire.id}`}
-        className="mt-8 inline-block text-sm font-medium text-accent hover:underline"
-      >
-        ← Retour au mémoire
-      </Link>
     </>
   );
 }

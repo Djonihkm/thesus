@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/auth/FormError";
 import { submitEvaluationAction, type EvaluationFormState } from "@/lib/actions/evaluation";
@@ -12,15 +12,31 @@ interface EvaluationFormProps {
   memoireId: string;
   existingCriteria?: EvaluationCriterion[];
   existingComments?: string | null;
+  // Utilisé par ReviewEvaluationModal pour rafraîchir l'historique après une modification —
+  // optionnel, sans effet sur l'usage existant depuis la page de détail du mémoire.
+  onSuccess?: () => void;
 }
 
 export function EvaluationForm({
   memoireId,
   existingCriteria,
   existingComments,
+  onSuccess,
 }: EvaluationFormProps) {
   const boundAction = submitEvaluationAction.bind(null, memoireId);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
+
+  // Ref "toujours à jour" plutôt qu'une dépendance directe sur onSuccess : un parent qui le
+  // redéfinit à chaque rendu (closure inline, cas de ReviewEvaluationModal) ne doit pas
+  // redéclencher l'effet tant que le succès lui-même n'a pas changé.
+  const onSuccessRef = useRef(onSuccess);
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  });
+
+  useEffect(() => {
+    if (state.success) onSuccessRef.current?.();
+  }, [state.success]);
 
   const [scores, setScores] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};

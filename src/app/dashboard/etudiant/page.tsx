@@ -24,7 +24,12 @@ export default async function EtudiantDashboardPage() {
     }),
     user.institutionId
       ? getStudentThemeContext(user.id, user.institutionId)
-      : Promise.resolve({ currentTheme: null, pendingSelection: null, availableThemes: [] }),
+      : Promise.resolve({
+          currentTheme: null,
+          pendingSelection: null,
+          pendingClosure: null,
+          availableThemes: [],
+        }),
   ]);
 
   const hasProcessingMemoire = memoires.some(
@@ -57,6 +62,7 @@ export default async function EtudiantDashboardPage() {
           <ThemeStatusBanner
             currentTheme={themeContext.currentTheme}
             pendingSelection={themeContext.pendingSelection}
+            pendingClosure={themeContext.pendingClosure}
           />
         </div>
       ) : (
@@ -71,7 +77,7 @@ export default async function EtudiantDashboardPage() {
       {canDeposit ? (
         <div className="mt-12">
           {!hasAnyMemoire ? (
-            <MemoireUploadForm />
+            <MemoireUploadForm activeThemeTitle={themeContext.currentTheme?.title ?? null} />
           ) : (
             <div>
               <div className="flex items-center justify-between gap-4">

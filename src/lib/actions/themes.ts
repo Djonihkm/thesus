@@ -113,6 +113,16 @@ export async function requestThemeAction(themeId: string): Promise<ThemeActionSt
   if (!user?.institutionId) {
     return { error: "Établissement introuvable." };
   }
+  // Un étudiant avec un thème actif doit d'abord le clôturer (voir
+  // requestThemeClosureAction) avant d'en demander un autre — sans ce garde-fou, une
+  // approbation ultérieure écraserait User.currentThemeId sans jamais libérer
+  // Theme.takenByUserId de l'ancien thème, qui resterait verrouillé indéfiniment sans que
+  // personne (y compris l'étudiant) ne le sache.
+  if (user.currentThemeId) {
+    return {
+      error: "Vous avez déjà un thème actif — clôturez-le avant d'en demander un nouveau.",
+    };
+  }
 
   const theme = await prisma.theme.findUnique({ where: { id: themeId } });
   if (!theme || theme.institutionId !== user.institutionId || theme.status !== "VALIDATED") {
@@ -300,6 +310,102 @@ export async function deleteThemeAction(themeId: string): Promise<ThemeActionSta
     prisma.theme.delete({ where: { id: themeId } }),
   ]);
 
+  revalidateThemePaths();
+  return { success: true };
+}
+
+// Étudiant : demande la clôture de son thème actif — terminé/soutenu (aboutissement normal,
+// le thème reste indisponible pour toujours) ou abandon (le thème redeviendra disponible et
+// l'étudiant pourra en redemander un). Soumise à validation établissement, comme le reste du
+// système de thèmes : crée une demande PENDING, le thème reste actif/utilisable (l'étudiant
+// peut continuer à déposer sous ce thème) tant qu'elle n'est pas traitée.
+export async function requestThemeClosureAction(
+  themeId: string,
+  reason: "COMPLETED" | "ABANDONED",
+): Promise<ThemeActionState> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "STUDENT") {
+    return { error: "Vous devez être connecté en tant qu'étudiant." };
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user || user.currentThemeId !== themeId) {
+    return { error: "Ce thème n'est pas votre thème actif." };
+  }
+
+  const existingPending = await prisma.themeClosureRequest.findFirst({
+    where: { themeId, studentId: user.id, status: "PENDING" },
+  });
+  if (existingPending) {
+    return { error: "Une demande de clôture pour ce thème est déjà en attente de validation." };
+  }
+
+  await prisma.themeClosureRequest.create({
+    data: { themeId, studentId: user.id, reason },
+  });
+
+  revalidateThemePaths();
+  return { success: true };
+}
+
+async function requireInstitutionClosure(closureId: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "INSTITUTION") {
+    return { error: "Vous devez être connecté en tant qu'établissement." } as const;
+  }
+
+  const [user, closure] = await Promise.all([
+    prisma.user.findUnique({ where: { id: session.user.id } }),
+    prisma.themeClosureRequest.findUnique({ where: { id: closureId }, include: { theme: true } }),
+  ]);
+
+  if (!user?.institutionId || !closure || closure.theme.institutionId !== user.institutionId) {
+    return { error: "Demande introuvable." } as const;
+  }
+  if (closure.status !== "PENDING") {
+    return { error: "Cette demande a déjà été traitée." } as const;
+  }
+
+  return { closure } as const;
+}
+
+// Établissement : approuve une clôture de thème.
+// - COMPLETED : Theme.takenByUserId reste inchangé — le thème est indisponible pour
+//   toujours, aboutissement normal.
+// - ABANDONED : Theme.takenByUserId repasse à null — le thème redevient disponible pour
+//   tout le monde.
+// Dans les deux cas, User.currentThemeId de l'étudiant repasse à null (il n'a plus de
+// thème actif, et pourra en redemander un — condition déjà vérifiée par le garde-fou de
+// requestThemeAction). Ne touche JAMAIS Memoire.themeId ni MemoireAssignment : les mémoires
+// déjà déposés sous ce thème gardent leur lien et leur éventuelle assignation jury intacts —
+// seule l'exclusivité du thème et le statut actif de l'étudiant changent.
+export async function approveThemeClosureAction(closureId: string): Promise<ThemeActionState> {
+  const result = await requireInstitutionClosure(closureId);
+  if ("error" in result) return { error: result.error };
+  const { closure } = result;
+
+  if (closure.theme.takenByUserId !== closure.studentId) {
+    return { error: "Ce thème n'est plus rattaché à cet étudiant." };
+  }
+
+  await prisma.$transaction([
+    prisma.themeClosureRequest.update({ where: { id: closureId }, data: { status: "APPROVED" } }),
+    prisma.theme.update({
+      where: { id: closure.themeId },
+      data: closure.reason === "ABANDONED" ? { takenByUserId: null } : {},
+    }),
+    prisma.user.update({ where: { id: closure.studentId }, data: { currentThemeId: null } }),
+  ]);
+
+  revalidateThemePaths();
+  return { success: true };
+}
+
+export async function rejectThemeClosureAction(closureId: string): Promise<ThemeActionState> {
+  const result = await requireInstitutionClosure(closureId);
+  if ("error" in result) return { error: result.error };
+
+  await prisma.themeClosureRequest.update({ where: { id: closureId }, data: { status: "REJECTED" } });
   revalidateThemePaths();
   return { success: true };
 }

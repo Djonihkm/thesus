@@ -6,6 +6,7 @@ import { AuditIcon, PlagiarismIcon, QuizIcon, JuryIcon } from "@/components/icon
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { ActionCard } from "@/components/dashboard/ActionCard";
 import { MemoireStatusBadge } from "@/components/dashboard/MemoireStatusBadge";
 import { AttachThemeButton } from "@/components/dashboard/AttachThemeButton";
@@ -121,12 +122,19 @@ export default async function MemoireDetailPage({
     <>
       <AutoRefresh enabled={isProcessing} />
 
+      <Breadcrumb
+        items={[
+          { label: "Mes mémoires", href: "/dashboard/etudiant/memoires" },
+          { label: memoire.title },
+        ]}
+      />
+
       <DashboardHeader
-        eyebrow="Mémoire déposé"
+        eyebrow={memoire.source === "DRAFTED" ? "Mémoire rédigé en ligne" : "Mémoire déposé"}
         title={memoire.title}
-        description={`Déposé le ${dateFormatter.format(memoire.submittedAt)} · fichier ${memoire.fileType}${
-          assignedJuryName ? ` · encadré par ${assignedJuryName}` : ""
-        }`}
+        description={`${memoire.source === "DRAFTED" ? "Créé" : "Déposé"} le ${dateFormatter.format(memoire.submittedAt)}${
+          memoire.fileType ? ` · fichier ${memoire.fileType}` : ""
+        }${assignedJuryName ? ` · encadré par ${assignedJuryName}` : ""}`}
         actions={<MemoireStatusBadge status={memoire.status} />}
       />
 

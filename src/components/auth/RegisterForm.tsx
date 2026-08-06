@@ -10,8 +10,9 @@ import { TabSelect } from "@/components/auth/TabSelect";
 import { Stepper } from "@/components/auth/Stepper";
 import { InstitutionCombobox } from "@/components/auth/InstitutionCombobox";
 import { FieldOfStudyCombobox } from "@/components/auth/FieldOfStudyCombobox";
+import { EmailCheckNotice } from "@/components/auth/EmailCheckNotice";
 import { FIELDS_OF_STUDY } from "@/lib/fields-of-study";
-import { registerAction, type AuthFormState } from "@/lib/actions/auth";
+import { registerAction, resendVerificationEmailAction, type AuthFormState } from "@/lib/actions/auth";
 import {
   isValidEmail,
   isValidPassword,
@@ -54,16 +55,11 @@ export function RegisterForm({
 
   if (state.success) {
     return (
-      <div className="flex flex-col gap-4 text-center">
-        <p className="text-lg font-medium text-ink">Vérifiez votre boîte mail</p>
-        <p className="leading-relaxed text-ink-muted">
-          Un email de confirmation vient de vous être envoyé. Cliquez sur le lien qu&apos;il
-          contient pour activer votre compte et vous connecter.
-        </p>
-        <Link href="/connexion" className="text-sm text-ink underline underline-offset-4">
-          Retour à la connexion
-        </Link>
-      </div>
+      <EmailCheckNotice
+        email={stepOne.email}
+        description="Un email de confirmation vient de vous être envoyé. Cliquez sur le lien qu'il contient pour activer votre compte et vous connecter."
+        resendAction={resendVerificationEmailAction}
+      />
     );
   }
 

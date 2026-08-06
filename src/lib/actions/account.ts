@@ -54,6 +54,37 @@ export async function updateProfileAction(
   return { success: true };
 }
 
+// Jury : équivalent de updateProfileAction pour un compte jury — champs entièrement
+// différents (spécialité plutôt que filière/niveau d'étude), donc une action séparée plutôt
+// qu'un branchement par rôle dans la même fonction.
+export async function updateJuryProfileAction(
+  _prevState: AccountFormState,
+  formData: FormData,
+): Promise<AccountFormState> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "JURY") {
+    return { error: "Vous devez être connecté en tant que membre du jury." };
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const specialty = String(formData.get("specialty") ?? "").trim();
+
+  if (!name) {
+    return { error: "Indiquez votre nom complet." };
+  }
+  if (!specialty) {
+    return { error: "Indiquez votre spécialité ou domaine d'expertise." };
+  }
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { name, specialty },
+  });
+
+  revalidatePath("/dashboard/jury/mon-compte");
+  return { success: true };
+}
+
 export async function changePasswordAction(
   _prevState: AccountFormState,
   formData: FormData,

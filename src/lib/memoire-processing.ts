@@ -29,7 +29,10 @@ export async function toDocxBuffer(buffer: Buffer, fileType: FileType): Promise<
 
 export async function processMemoire(memoireId: string): Promise<void> {
   const memoire = await prisma.memoire.findUnique({ where: { id: memoireId } });
-  if (!memoire) return;
+  // Un mémoire DRAFTED (rédigé directement dans l'éditeur, voir createDraftMemoireAction)
+  // n'a pas de fichier source et n'est jamais passé à cette fonction — garde-fou défensif
+  // seulement, pas un chemin normal.
+  if (!memoire || !memoire.fileUrl || !memoire.fileType) return;
 
   let docxBuffer: Buffer;
   try {
