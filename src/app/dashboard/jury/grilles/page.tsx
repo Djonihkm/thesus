@@ -44,7 +44,7 @@ export default async function JuryGrillesPage() {
             {evaluations.map((evaluation) => (
               <div
                 key={evaluation.id}
-                className="flex flex-col gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-ink">{evaluation.memoire.title}</p>
@@ -86,7 +86,7 @@ export default async function JuryGrillesPage() {
           {EVALUATION_CRITERIA_GUIDANCE.map((criterion) => (
             <div
               key={criterion.label}
-              className="rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5"
+              className="rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8"
             >
               <h3 className="text-sm font-medium text-ink">{criterion.label}</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-ink-muted">{criterion.description}</p>

@@ -20,7 +20,7 @@ const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
 
 export function MemoireGridCard({ id, title, status, submittedAt }: MemoireGridCardProps) {
   return (
-    <div className="group relative flex h-full flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10">
+    <div className="group relative flex h-full flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10">
       <Link href={`/dashboard/etudiant/memoires/${id}`} className="absolute inset-0" aria-label={title} />
 
       <div className="pointer-events-none flex flex-1 flex-col">

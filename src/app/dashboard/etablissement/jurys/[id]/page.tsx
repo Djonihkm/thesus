@@ -69,7 +69,7 @@ export default async function EtablissementJuryDetailPage({
           {assigned.map((memoire) => (
             <div
               key={memoire.id}
-              className="flex items-center justify-between gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5"
+              className="flex items-center justify-between gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-ink">{memoire.title}</p>

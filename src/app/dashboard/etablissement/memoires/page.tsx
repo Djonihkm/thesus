@@ -69,7 +69,7 @@ export default async function EtablissementMemoiresPage() {
             return (
               <div
                 key={memoire.id}
-                className="flex flex-col gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-ink">{memoire.title}</p>

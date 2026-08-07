@@ -56,7 +56,7 @@ export default async function EtablissementDashboardPage() {
       </div>
 
       <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="flex flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5">
+        <div className="flex flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8">
           <div className="flex-1">
             <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
               Thèmes en attente de validation
@@ -77,7 +77,7 @@ export default async function EtablissementDashboardPage() {
           </Button>
         </div>
 
-        <div className="flex flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5">
+        <div className="flex flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8">
           <div className="flex-1">
             <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
               Mémoires à assigner à un jury
@@ -98,7 +98,7 @@ export default async function EtablissementDashboardPage() {
           </Button>
         </div>
 
-        <div className="flex flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5">
+        <div className="flex flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8">
           <div className="flex-1">
             <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">Jurys</h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">

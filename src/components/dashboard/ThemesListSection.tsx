@@ -188,12 +188,12 @@ export function ThemesListSection({ themes }: { themes: ThemeSummary[] }) {
       }
       gridClassName="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch"
       renderGrid={(theme) => (
-        <div className="h-full rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5">
+        <div className="h-full rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8">
           <ThemeCard theme={theme} />
         </div>
       )}
       renderList={(theme) => (
-        <div className="rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5">
+        <div className="rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8">
           <ThemeCard theme={theme} />
         </div>
       )}

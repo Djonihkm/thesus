@@ -39,7 +39,7 @@ export function JurysListSection({ jurors }: { jurors: JurySummary[] }) {
       items={jurors}
       getKey={(jury) => jury.id}
       renderList={(jury) => (
-        <div className="group relative flex items-center justify-between gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10">
+        <div className="group relative flex items-center justify-between gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10">
           <Link
             href={`/dashboard/etablissement/jurys/${jury.id}`}
             className="absolute inset-0"
@@ -64,7 +64,7 @@ export function JurysListSection({ jurors }: { jurors: JurySummary[] }) {
         </div>
       )}
       renderGrid={(jury) => (
-        <div className="group relative flex h-full flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10">
+        <div className="group relative flex h-full flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8 transition hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10">
           <Link
             href={`/dashboard/etablissement/jurys/${jury.id}`}
             className="absolute inset-0"

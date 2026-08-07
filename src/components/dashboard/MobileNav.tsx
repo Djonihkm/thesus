@@ -53,12 +53,19 @@ export function MobileNav({ role }: MobileNavProps) {
             aria-hidden="true"
           />
 
-          {/* Panneau */}
-          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[80%] flex-col bg-surface-light px-5 py-6 shadow-xl">
+          {/* Panneau — même traitement sombre que la sidebar desktop (Sidebar.tsx), pour que
+              le menu reste visuellement le même produit d'un breakpoint à l'autre. */}
+          <div className="sidebar-dark absolute inset-y-0 left-0 flex w-72 max-w-[80%] flex-col px-5 py-6 shadow-xl">
             <div className="flex items-center justify-between px-2">
               <div>
-                <Image src="/logo.png" alt="Thesus" width={239} height={133} className="h-7 w-auto" />
-                <p className="mt-2 text-xs font-medium tracking-wide text-ink-muted">
+                <Image
+                  src="/logo-white.png"
+                  alt="Thesus"
+                  width={239}
+                  height={133}
+                  className="h-7 w-auto"
+                />
+                <p className="mt-2 text-xs font-medium tracking-wide text-paper-muted">
                   {roleLabel}
                 </p>
               </div>
@@ -66,7 +73,7 @@ export function MobileNav({ role }: MobileNavProps) {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Fermer le menu"
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-muted hover:bg-surface-neutral"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-paper-muted hover:bg-white/5 hover:text-paper"
               >
                 <X size={20} />
               </button>
@@ -81,13 +88,16 @@ export function MobileNav({ role }: MobileNavProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+                    className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition ${
                       isActive
-                        ? "bg-surface-neutral font-medium text-ink"
-                        : "text-ink-muted hover:bg-surface-neutral/60 hover:text-ink"
+                        ? "bg-accent/12 font-medium text-accent-on-dark"
+                        : "text-paper-muted hover:bg-white/5 hover:text-paper"
                     }`}
                   >
-                    <Icon size={17} strokeWidth={isActive ? 2.2 : 1.8} />
+                    {isActive ? (
+                      <span className="absolute top-1/2 left-0 h-4 w-1 -translate-y-1/2 rounded-full bg-accent" />
+                    ) : null}
+                    <Icon size={17} strokeWidth={isActive ? 2.2 : 1.7} />
                     {item.label}
                   </Link>
                 );

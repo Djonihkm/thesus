@@ -1,8 +1,9 @@
-// src/components/dashboard/Topbar.tsx
 import { ReactNode } from "react";
+import { Bell } from "lucide-react";
 import { Role } from "@prisma/client";
-import { SignOutButton } from "@/components/auth/SignOutButton";
 import { MobileNav } from "./MobileNav";
+import { SearchBar } from "./SearchBar";
+import { ProfileMenu } from "./ProfileMenu";
 
 interface TopbarProps {
   role: Role;
@@ -13,22 +14,33 @@ interface TopbarProps {
 
 export function Topbar({ role, userName, institutionName, actions }: TopbarProps) {
   return (
-    <header className="flex items-center justify-between border-b border-border-dark/10 bg-surface-light px-6 py-4 md:px-10">
-      <div className="flex items-center gap-3">
-        <MobileNav role={role} />
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 font-serif text-sm text-accent-dark">
-          {userName.charAt(0).toUpperCase()}
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-ink">{userName}</span>
-          {institutionName && (
-            <span className="text-xs text-ink-muted">{institutionName}</span>
-          )}
-        </div>
+    <header className="relative z-10 flex items-center gap-4 border-b border-border-neutral bg-surface-light px-6 py-3.5 shadow-sm shadow-ink/3 md:px-10">
+      {/* Filet doré discret en tête de chrome — l'un des rares usages de l'accent hors
+          état actif/CTA, pour rythmer la page sans la charger. */}
+      <span className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-accent/40 to-transparent" />
+
+      <MobileNav role={role} />
+
+      <div className="hidden flex-1 md:flex md:justify-center">
+        <SearchBar role={role} />
       </div>
-      <div className="flex items-center gap-3">
+
+      <div className="ml-auto flex min-w-0 shrink-0 items-center gap-3">
         {actions}
-        <SignOutButton />
+
+        {/* Emplacement pour une future icône de notifications — purement visuel pour
+            l'instant, pas de pastille tant qu'aucune notification réelle n'existe. */}
+        <button
+          type="button"
+          aria-label="Notifications"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-surface-neutral hover:text-ink"
+        >
+          <Bell size={17} strokeWidth={1.8} />
+        </button>
+
+        <span className="hidden h-7 w-px shrink-0 bg-border-neutral sm:block" />
+
+        <ProfileMenu role={role} userName={userName} institutionName={institutionName} />
       </div>
     </header>
   );

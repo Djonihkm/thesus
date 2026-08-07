@@ -48,7 +48,7 @@ export function ThemeSelectionReviewRow({
   }
 
   return (
-    <div className="rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5">
+    <div className="rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">

@@ -139,7 +139,7 @@ export default async function MemoireDetailPage({
       />
 
       {memoire.theme ? (
-        <div className="mt-8 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5">
+        <div className="mt-8 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8">
           <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
             {memoire.theme.category}
           </span>

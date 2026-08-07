@@ -27,7 +27,7 @@ export function ActionCard({
 
   const content = (
     <div
-      className={`group flex h-full flex-col justify-between rounded-2xl border bg-surface-light p-6 shadow-sm shadow-ink/5 transition ${
+      className={`group flex h-full flex-col justify-between rounded-2xl border bg-surface-light p-6 shadow-md shadow-ink/8 transition ${
         isLocked
           ? "border-border-neutral opacity-50"
           : "border-border-neutral hover:-translate-y-1 hover:shadow-lg hover:shadow-ink/10"

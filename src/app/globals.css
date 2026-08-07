@@ -46,6 +46,12 @@ body {
   background: linear-gradient(135deg, #0a0a0a 0%, #262626 100%);
 }
 
+/* Sidebar sombre — même famille que hero-gradient (rappel visuel volontaire entre le
+   marketing et l'appli), mais discrète : dégradé quasi plat, pas un second hero. */
+.sidebar-dark {
+  background: linear-gradient(180deg, #0a0a0a 0%, #1c1c1a 100%);
+}
+
 .tiptap-document .ProseMirror {
   outline: none;
   font-family: var(--font-serif), Georgia, serif;
@@ -110,6 +116,53 @@ body {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
+}
+
+/* Un paragraphe entièrement flottant (image alignée gauche/droite) ne doit pas laisser le
+   conteneur s'effondrer autour de lui si c'est le dernier élément du document. */
+.tiptap-document .ProseMirror::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+/* Marqueur visuel du saut de page — uniquement à l'écran : la propriété page-break-after
+   posée par l'extension PageBreak elle-même (voir src/lib/tiptap/page-break.ts) est ignorée
+   par les navigateurs hors contexte d'impression, donc sans repère ici le saut serait
+   invisible en train d'éditer. */
+.tiptap-document .ProseMirror div[data-type="page-break"] {
+  position: relative;
+  height: 2.5rem;
+  margin: 0.5em 0;
+  border-top: 1px dashed var(--color-border-neutral);
+  border-bottom: 1px dashed var(--color-border-neutral);
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-surface-neutral),
+    var(--color-surface-neutral) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  cursor: default;
+}
+
+.tiptap-document .ProseMirror div[data-type="page-break"].ProseMirror-selectednode {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.tiptap-document .ProseMirror div[data-type="page-break"]::after {
+  content: "Saut de page";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--color-surface-light);
+  padding: 0 0.75em;
+  font-size: 0.7rem;
+  font-family: var(--font-sans), Arial, sans-serif;
+  color: var(--color-ink-muted);
+  white-space: nowrap;
 }
 
 .tiptap-document .ProseMirror .tableWrapper {

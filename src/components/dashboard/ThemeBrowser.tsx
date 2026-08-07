@@ -211,7 +211,7 @@ export function ThemeBrowser({ availableThemes, pendingSelection, myRequests }: 
                 <p className="text-sm text-ink-muted">Aucun thème ne correspond à votre recherche.</p>
               }
               renderGrid={(theme) => (
-                <div className="flex h-full flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5">
+                <div className="flex h-full flex-col rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8">
                   <div className="flex-1">
                     <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
                       {theme.category}
@@ -234,7 +234,7 @@ export function ThemeBrowser({ availableThemes, pendingSelection, myRequests }: 
                 </div>
               )}
               renderList={(theme) => (
-                <div className="flex items-center justify-between gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-sm shadow-ink/5">
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-border-neutral bg-surface-light p-5 shadow-md shadow-ink/8">
                   <div className="min-w-0">
                     <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
                       {theme.category}
@@ -260,7 +260,7 @@ export function ThemeBrowser({ availableThemes, pendingSelection, myRequests }: 
       ) : null}
 
       {mode === "propose" ? (
-        <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5">
+        <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8">
           {proposeSuccess ? (
             <p className="text-sm text-ink-muted">
               Votre thème a été soumis à l&apos;établissement — suivez son statut dans « Mes
@@ -331,7 +331,7 @@ export function ThemeBrowser({ availableThemes, pendingSelection, myRequests }: 
               return (
                 <div
                   key={request.theme.id}
-                  className="rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-sm shadow-ink/5"
+                  className="rounded-2xl border border-border-neutral bg-surface-light p-6 shadow-md shadow-ink/8"
                 >
                   <span className="text-xs font-medium tracking-[1.5px] text-accent-dark uppercase">
                     {request.theme.category}
