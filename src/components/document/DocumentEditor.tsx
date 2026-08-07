@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   LiveblocksProvider,
   RoomProvider,
@@ -17,17 +17,42 @@ import {
 } from "@liveblocks/react-tiptap";
 import { Thread } from "@liveblocks/react-ui";
 import type { ThreadData } from "@liveblocks/client";
-import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
+import Underline from "@tiptap/extension-underline";
+import { TextStyle, FontFamily, FontSize } from "@tiptap/extension-text-style";
+import TextAlign from "@tiptap/extension-text-align";
 import { Table } from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
-import Image from "@tiptap/extension-image";
-import { Table2, ImagePlus, MessageSquare, Sparkles, X, ArrowRight, ArrowDownToLine, Send } from "lucide-react";
+import {
+  Table2,
+  ImagePlus,
+  MessageSquare,
+  Sparkles,
+  X,
+  ArrowRight,
+  ArrowDownToLine,
+  Send,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  ScissorsLineDashed,
+  Minus,
+  Download,
+  Loader2,
+  Check,
+  CircleAlert,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { PlagiarismFlag } from "@/lib/tiptap/plagiarism-flag-mark";
 import { AnnotateOnly } from "@/lib/tiptap/annotate-only-plugin";
+import { PageBreak } from "@/lib/tiptap/page-break";
+import { ResizableImage } from "@/lib/tiptap/resizable-image";
 import {
   saveDocumentContentAction,
   regenerateDocumentContentAction,
@@ -35,8 +60,32 @@ import {
 } from "@/lib/actions/document";
 import { sendAiChatMessageAction, type ChatMessageView } from "@/lib/actions/ai-chat";
 import { escapeHtml } from "@/lib/html";
-import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/auth/FormError";
+
+// Jeu de polices volontairement limité aux classiques web-safe (rendu identique dans
+// l'éditeur, le PDF Adobe et le DOCX généré) — pas de Google Fonts, dont la disponibilité
+// n'est pas garantie côté moteur de rendu Adobe ni dans Word à l'ouverture.
+const FONT_FAMILIES = [
+  { label: "Par défaut", value: "" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Times New Roman", value: "'Times New Roman', serif" },
+  { label: "Arial", value: "Arial, sans-serif" },
+  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
+  { label: "Courier New", value: "'Courier New', monospace" },
+] as const;
+
+const FONT_SIZES = [
+  { label: "Par défaut", value: "" },
+  { label: "10", value: "10pt" },
+  { label: "11", value: "11pt" },
+  { label: "12", value: "12pt" },
+  { label: "14", value: "14pt" },
+  { label: "16", value: "16pt" },
+  { label: "18", value: "18pt" },
+  { label: "20", value: "20pt" },
+  { label: "24", value: "24pt" },
+  { label: "28", value: "28pt" },
+] as const;
 
 import "@liveblocks/react-ui/styles.css";
 import "@liveblocks/react-tiptap/styles.css";
@@ -112,6 +161,8 @@ function EditorSkeleton() {
 
 type PanelTab = "comments" | "chat";
 
+const PANEL_COLLAPSED_STORAGE_KEY = "thesus-document-panel-collapsed";
+
 function EditorRoom({
   memoireId,
   mode,
@@ -127,8 +178,10 @@ function EditorRoom({
 }) {
   const liveblocksExtension = useLiveblocksExtension({ initialContent });
   const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<"pdf" | "docx" | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { threads } = useThreads({ query: { resolved: false } });
 
   // Le chat IA est réservé à l'étudiant sur son propre document (mode "edit" — annotate est
@@ -143,16 +196,35 @@ function EditorRoom({
     setMobileOpen(true);
   }
 
+  // Repli du panneau latéral, mémorisé pour ne pas avoir à le refermer à chaque chargement
+  // de page si l'étudiant préfère le garder replié. Lu paresseusement (le composant n'est
+  // monté que côté client, sous ClientSideSuspense, mais l'initialiseur de useState peut
+  // quand même s'exécuter pendant un rendu serveur du même arbre client — d'où la garde).
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(PANEL_COLLAPSED_STORAGE_KEY) === "true";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(PANEL_COLLAPSED_STORAGE_KEY, String(isPanelCollapsed));
+  }, [isPanelCollapsed]);
+
   const editor = useEditor({
     extensions: [
       liveblocksExtension,
       StarterKit.configure({ undoRedo: false }),
       Highlight,
+      Underline,
+      TextStyle,
+      FontFamily,
+      FontSize,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      PageBreak,
       Table.configure({ renderWrapper: true }),
       TableRow,
       TableHeader,
       TableCell,
-      Image,
+      ResizableImage,
       PlagiarismFlag,
       ...(mode === "annotate" ? [AnnotateOnly] : []),
     ],
@@ -160,14 +232,32 @@ function EditorRoom({
     immediatelyRender: false,
   });
 
-  async function handleSave() {
+  const performSave = useCallback(async () => {
     if (!editor) return;
-    setIsSaving(true);
-    setError(null);
+    setSaveStatus("saving");
     const result = await saveDocumentContentAction(memoireId, editor.getHTML());
-    setIsSaving(false);
-    if (result.error) setError(result.error);
-  }
+    setSaveStatus(result.error ? "error" : "saved");
+  }, [editor, memoireId]);
+
+  // Sauvegarde automatique façon Google Docs : un court silence après la dernière frappe
+  // déclenche l'enregistrement, plutôt qu'un bouton manuel — seul le mode "edit" (l'étudiant
+  // propriétaire) peut écrire dans Memoire.editableContent, voir saveDocumentContentAction.
+  useEffect(() => {
+    if (!editor || mode !== "edit") return;
+
+    function scheduleSave() {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        void performSave();
+      }, 1500);
+    }
+
+    editor.on("update", scheduleSave);
+    return () => {
+      editor.off("update", scheduleSave);
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [editor, mode, performSave]);
 
   async function handleRegenerate() {
     const confirmed = window.confirm(
@@ -186,11 +276,44 @@ function EditorRoom({
     window.location.reload();
   }
 
+  // Enregistre d'abord le contenu actuel de l'éditeur, pour que le fichier téléchargé
+  // reflète exactement ce qui est affiché — pas seulement la dernière version déjà
+  // enregistrée. Le navigateur gère ensuite le téléchargement lui-même (réponse en
+  // Content-Disposition: attachment) : impossible de détecter sa fin depuis ce contexte, on
+  // relâche donc l'état "en cours" après un court délai plutôt que de bloquer le bouton.
+  async function handleExport(format: "pdf" | "docx") {
+    if (!editor || exportingFormat) return;
+    setExportingFormat(format);
+    setError(null);
+
+    // Seul le mode "edit" (l'étudiant propriétaire) peut enregistrer — en mode "annotate"
+    // (jury) ou "read", saveDocumentContentAction refuserait de toute façon (pas le
+    // propriétaire) : l'export part directement du contenu déjà enregistré en base.
+    if (mode === "edit") {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      setSaveStatus("saving");
+      const saveResult = await saveDocumentContentAction(memoireId, editor.getHTML());
+      if (saveResult.error) {
+        setSaveStatus("error");
+        setError(saveResult.error);
+        setExportingFormat(null);
+        return;
+      }
+      setSaveStatus("saved");
+    }
+
+    window.location.href = `/api/memoires/${memoireId}/export/${format}`;
+    setTimeout(() => setExportingFormat(null), 3000);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
-        <PresenceAvatars />
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-4">
+          <PresenceAvatars />
+          {mode === "edit" ? <SaveStatusIndicator status={saveStatus} /> : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
           {canRegenerate ? (
             <button
               type="button"
@@ -201,39 +324,66 @@ function EditorRoom({
               {isRegenerating ? "Régénération…" : "Régénérer depuis le PDF original"}
             </button>
           ) : null}
-          {mode === "edit" ? (
-            <Button
-              type="button"
-              tone="light"
-              variant="primary"
-              onClick={handleSave}
-              disabled={isSaving}
-            >
-              {isSaving ? "Enregistrement…" : "Enregistrer"}
-            </Button>
-          ) : null}
+
+          <button
+            type="button"
+            onClick={() => handleExport("pdf")}
+            disabled={exportingFormat !== null}
+            className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 px-4 py-2 text-xs font-medium text-ink transition hover:bg-surface-neutral disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exportingFormat === "pdf" ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Download size={13} />
+            )}
+            PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport("docx")}
+            disabled={exportingFormat !== null}
+            className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 px-4 py-2 text-xs font-medium text-ink transition hover:bg-surface-neutral disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exportingFormat === "docx" ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Download size={13} />
+            )}
+            DOCX
+          </button>
         </div>
       </div>
 
       {error ? <FormError message={error} /> : null}
 
-      {mode === "edit" ? (
-        <EditFixedToolbar editor={editor} memoireId={memoireId} onOpenChat={openChatPanel} />
-      ) : null}
+      {/* Cadre à hauteur contrainte, indépendant du scroll de la page : la barre d'outils
+          (première section, non scrollable) reste donc visible en permanence, seul le
+          contenu du document défile dans son propre overflow-y ci-dessous. min-h-0 sur
+          l'enfant flex-1 est nécessaire (même piège que le panneau de commentaires) : sans
+          ça, un flex-col laisse son enfant grandir avec son contenu au lieu de le contraindre
+          à la hauteur disponible, et overflow-y-auto n'a alors plus rien à faire. */}
+      <div className="flex h-[calc(100vh-19rem)] min-h-105 flex-col overflow-hidden rounded-2xl border border-border-neutral bg-surface-light">
+        {mode === "edit" ? (
+          <div className="shrink-0 border-b border-border-neutral">
+            <EditFixedToolbar editor={editor} memoireId={memoireId} onOpenChat={openChatPanel} />
+          </div>
+        ) : null}
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          <EditorContent editor={editor} className="tiptap-document" />
+        </div>
+      </div>
 
       {mode === "edit" ? <FloatingToolbar editor={editor} /> : null}
       {mode === "annotate" ? <AnnotateFloatingToolbar editor={editor} /> : null}
 
-      <div className="flex flex-col gap-4 lg:flex-row">
-        <div className="min-w-0 flex-1 rounded-2xl border border-border-neutral bg-surface-light p-6">
-          <EditorContent editor={editor} className="tiptap-document" />
-        </div>
-
-        {/* Réserve la place de la colonne : le panneau réel est en position fixe (voir
-            EditorSidePanel) pour rester scrollable indépendamment du document, sans dépendre
-            du scroll de <main> ni d'un contexte sticky ambigu selon la structure du layout. */}
-        <div className="hidden lg:block lg:w-80 lg:shrink-0" aria-hidden="true" />
-      </div>
+      {/* Réserve la place de la colonne à droite pour ne pas passer sous le panneau latéral
+          (en position fixe, voir EditorSidePanel) — largeur synchronisée avec son état
+          replié/déplié pour que le document profite réellement de l'espace libéré. */}
+      <div
+        className={`hidden lg:block lg:shrink-0 ${isPanelCollapsed ? "lg:w-14" : "lg:w-80"}`}
+        aria-hidden="true"
+      />
 
       <EditorSidePanel
         editor={editor}
@@ -243,6 +393,8 @@ function EditorRoom({
         onTabChange={setActiveTab}
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
+        isCollapsed={isPanelCollapsed}
+        onCollapsedChange={setIsPanelCollapsed}
         memoireId={memoireId}
         initialChatMessages={initialChatMessages}
       />
@@ -257,6 +409,42 @@ function EditorRoom({
   );
 }
 
+function SaveStatusIndicator({ status }: { status: "idle" | "saving" | "saved" | "error" }) {
+  if (status === "idle") return null;
+
+  if (status === "saving") {
+    return (
+      <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-muted">
+        <Loader2 size={12} className="animate-spin" />
+        Enregistrement…
+      </span>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <span className="flex shrink-0 items-center gap-1.5 text-xs text-flag">
+        <CircleAlert size={12} />
+        Erreur d&apos;enregistrement
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-muted">
+      <Check size={12} className="text-accent-dark" />
+      Enregistré
+    </span>
+  );
+}
+
+const ALIGN_BUTTONS = [
+  { value: "left", icon: AlignLeft, label: "Aligner à gauche" },
+  { value: "center", icon: AlignCenter, label: "Centrer" },
+  { value: "right", icon: AlignRight, label: "Aligner à droite" },
+  { value: "justify", icon: AlignJustify, label: "Justifier" },
+] as const;
+
 function EditFixedToolbar({
   editor,
   memoireId,
@@ -268,6 +456,22 @@ function EditFixedToolbar({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  const { fontFamily, fontSize, textAlign } = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      fontFamily: currentEditor?.isActive("textStyle")
+        ? ((currentEditor.getAttributes("textStyle").fontFamily as string | undefined) ?? "")
+        : "",
+      fontSize: currentEditor?.isActive("textStyle")
+        ? ((currentEditor.getAttributes("textStyle").fontSize as string | undefined) ?? "")
+        : "",
+      textAlign:
+        (["left", "center", "right", "justify"] as const).find((align) =>
+          currentEditor?.isActive({ textAlign: align }),
+        ) ?? "left",
+    }),
+  }) ?? { fontFamily: "", fontSize: "", textAlign: "left" as const };
 
   function insertTable() {
     editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
@@ -293,6 +497,55 @@ function EditFixedToolbar({
     <Toolbar editor={editor}>
       <Toolbar.SectionHistory />
       <Toolbar.Separator />
+
+      <select
+        aria-label="Police"
+        value={fontFamily}
+        onChange={(event) => {
+          const value = event.target.value;
+          if (value) editor?.chain().focus().setFontFamily(value).run();
+          else editor?.chain().focus().unsetFontFamily().run();
+        }}
+        className="h-8 rounded-md border border-ink/15 bg-surface-light px-2 text-xs text-ink outline-none focus:border-accent"
+      >
+        {FONT_FAMILIES.map((font) => (
+          <option key={font.label} value={font.value} style={{ fontFamily: font.value || undefined }}>
+            {font.label}
+          </option>
+        ))}
+      </select>
+
+      <select
+        aria-label="Taille du texte"
+        value={fontSize}
+        onChange={(event) => {
+          const value = event.target.value;
+          if (value) editor?.chain().focus().setFontSize(value).run();
+          else editor?.chain().focus().unsetFontSize().run();
+        }}
+        className="h-8 rounded-md border border-ink/15 bg-surface-light px-2 text-xs text-ink outline-none focus:border-accent"
+      >
+        {FONT_SIZES.map((size) => (
+          <option key={size.label} value={size.value}>
+            {size.label}
+          </option>
+        ))}
+      </select>
+
+      <Toolbar.Separator />
+
+      {ALIGN_BUTTONS.map((align) => (
+        <Toolbar.Toggle
+          key={align.value}
+          name={align.label}
+          icon={<align.icon size={16} />}
+          active={textAlign === align.value}
+          onClick={() => editor?.chain().focus().setTextAlign(align.value).run()}
+        />
+      ))}
+
+      <Toolbar.Separator />
+
       <Toolbar.Button name="Insérer un tableau" icon={<Table2 size={16} />} onClick={insertTable} />
       <Toolbar.Button
         name="Insérer une image"
@@ -300,6 +553,17 @@ function EditFixedToolbar({
         disabled={isUploading}
         onClick={() => fileInputRef.current?.click()}
       />
+      <Toolbar.Button
+        name="Ligne horizontale"
+        icon={<Minus size={16} />}
+        onClick={() => editor?.chain().focus().setHorizontalRule().run()}
+      />
+      <Toolbar.Button
+        name="Saut de page"
+        icon={<ScissorsLineDashed size={16} />}
+        onClick={() => editor?.chain().focus().setPageBreak().run()}
+      />
+
       <Toolbar.Separator />
       <Toolbar.Button name="Assistant IA" icon={<Sparkles size={16} />} onClick={onOpenChat} />
       <input
@@ -570,6 +834,8 @@ function EditorSidePanel({
   onTabChange,
   mobileOpen,
   onMobileOpenChange,
+  isCollapsed,
+  onCollapsedChange,
   memoireId,
   initialChatMessages,
 }: {
@@ -580,6 +846,8 @@ function EditorSidePanel({
   onTabChange: (tab: PanelTab) => void;
   mobileOpen: boolean;
   onMobileOpenChange: (open: boolean) => void;
+  isCollapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
   memoireId: string;
   initialChatMessages: ChatMessageView[];
 }) {
@@ -590,16 +858,38 @@ function EditorSidePanel({
     onMobileOpenChange(false);
   }
 
-  function renderHeader(onClose?: () => void) {
+  function renderHeader(onClose?: () => void, onCollapse?: () => void) {
+    const trailingButtons = (
+      <div className="flex shrink-0 items-center">
+        {onCollapse ? (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Réduire le panneau"
+            title="Réduire le panneau"
+            className="px-2 text-ink-muted transition hover:text-ink"
+          >
+            <ChevronRight size={16} />
+          </button>
+        ) : null}
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer le panneau"
+            className="px-3 text-ink-muted transition hover:text-ink"
+          >
+            <X size={18} />
+          </button>
+        ) : null}
+      </div>
+    );
+
     if (!showChat) {
       return (
         <div className="flex shrink-0 items-center justify-between border-b border-border-neutral px-4 py-3">
           <span className="text-sm font-medium text-ink">{commentsLabel}</span>
-          {onClose ? (
-            <button type="button" onClick={onClose} aria-label="Fermer le panneau" className="text-ink-muted hover:text-ink">
-              <X size={18} />
-            </button>
-          ) : null}
+          {trailingButtons}
         </div>
       );
     }
@@ -628,16 +918,7 @@ function EditorSidePanel({
         >
           Assistant IA
         </button>
-        {onClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fermer le panneau"
-            className="shrink-0 px-3 text-ink-muted hover:text-ink"
-          >
-            <X size={18} />
-          </button>
-        ) : null}
+        {trailingButtons}
       </div>
     );
   }
@@ -666,10 +947,22 @@ function EditorSidePanel({
       {/* Position fixe (et non sticky) : indépendante du scroll de <main> et de la
           structure de layout parente, pour garantir un panneau qui reste à l'écran et
           scroll séparément du document, quoi qu'il arrive au-dessus dans l'arbre. */}
-      <aside className="hidden lg:fixed lg:top-24 lg:right-6 lg:bottom-6 lg:z-30 lg:flex lg:w-80 lg:flex-col lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border-neutral lg:bg-surface-light lg:shadow-lg">
-        {renderHeader()}
-        {body}
-      </aside>
+      {isCollapsed ? (
+        <button
+          type="button"
+          onClick={() => onCollapsedChange(false)}
+          aria-label={`Ouvrir le panneau ${floatingLabel}`}
+          title={floatingLabel}
+          className="hidden lg:fixed lg:top-24 lg:right-6 lg:z-30 lg:flex lg:h-12 lg:w-12 lg:items-center lg:justify-center lg:rounded-full lg:border lg:border-border-neutral lg:bg-surface-light lg:text-ink-muted lg:shadow-lg lg:transition lg:hover:text-ink"
+        >
+          <ChevronLeft size={18} />
+        </button>
+      ) : (
+        <aside className="hidden lg:fixed lg:top-24 lg:right-6 lg:bottom-6 lg:z-30 lg:flex lg:w-80 lg:flex-col lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border-neutral lg:bg-surface-light lg:shadow-lg">
+          {renderHeader(undefined, () => onCollapsedChange(true))}
+          {body}
+        </aside>
+      )}
 
       {mobileOpen ? (
         <div className="fixed inset-0 z-40 flex justify-end lg:hidden">
