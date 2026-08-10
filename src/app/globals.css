@@ -42,6 +42,13 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
+/* Tailwind v4 preflight retire le curseur pointer par défaut des boutons ;
+   on restaure le comportement natif attendu pour tout élément cliquable. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
 .hero-gradient {
   background: linear-gradient(135deg, #0a0a0a 0%, #262626 100%);
 }
