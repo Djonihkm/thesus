@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 import { EVALUATION_CRITERIA_LABELS, type EvaluationCriterion } from "@/lib/evaluation-criteria";
 
 export type EvaluationFormState = {
@@ -76,6 +77,12 @@ export async function submitEvaluationAction(
   revalidatePath("/dashboard/jury");
   revalidatePath("/dashboard/jury/grilles");
   revalidatePath("/dashboard/etudiant/evaluation");
+
+  await createNotification(
+    memoire.studentId,
+    "Votre soutenance a été évaluée.",
+    `/dashboard/etudiant/memoires/${memoireId}`,
+  );
 
   return { success: true };
 }

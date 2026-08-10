@@ -8,6 +8,7 @@ interface DashboardShellProps {
   role: Role;
   userName: string;
   institutionName?: string | null;
+  initialUnreadCount: number;
   topbarActions?: ReactNode;
   children: ReactNode;
 }
@@ -16,6 +17,7 @@ export function DashboardShell({
   role,
   userName,
   institutionName,
+  initialUnreadCount,
   topbarActions,
   children,
 }: DashboardShellProps) {
@@ -31,6 +33,7 @@ export function DashboardShell({
           role={role}
           userName={userName}
           institutionName={institutionName}
+          initialUnreadCount={initialUnreadCount}
           actions={topbarActions}
         />
         <main className="flex-1 overflow-y-auto bg-surface-light px-6 py-10 md:px-10 md:py-14">

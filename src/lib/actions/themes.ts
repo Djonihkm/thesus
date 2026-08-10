@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createNotification, notifyInstitution } from "@/lib/notifications";
 
 export type ThemeActionState = {
   error?: string;
@@ -94,6 +95,11 @@ export async function proposeThemeAction(input: {
   });
 
   revalidateThemePaths();
+  await notifyInstitution(
+    user.institutionId,
+    "Un étudiant a proposé un nouveau thème.",
+    "/dashboard/etablissement/themes",
+  );
   return { success: true };
 }
 
@@ -154,6 +160,11 @@ export async function requestThemeAction(themeId: string): Promise<ThemeActionSt
   });
 
   revalidateThemePaths();
+  await notifyInstitution(
+    user.institutionId,
+    "Un étudiant a demandé un thème.",
+    "/dashboard/etablissement/themes",
+  );
   return { success: true };
 }
 
@@ -200,15 +211,26 @@ export async function approveThemeSelectionAction(selectionId: string): Promise<
   ]);
 
   revalidateThemePaths();
+  await createNotification(
+    selection.studentId,
+    "Votre demande de thème a été approuvée.",
+    "/dashboard/etudiant/themes",
+  );
   return { success: true };
 }
 
 export async function rejectThemeSelectionAction(selectionId: string): Promise<ThemeActionState> {
   const result = await requireInstitutionSelection(selectionId);
   if ("error" in result) return { error: result.error };
+  const { selection } = result;
 
   await prisma.themeSelection.update({ where: { id: selectionId }, data: { status: "REJECTED" } });
   revalidateThemePaths();
+  await createNotification(
+    selection.studentId,
+    "Votre demande de thème a été rejetée.",
+    "/dashboard/etudiant/themes",
+  );
   return { success: true };
 }
 
@@ -233,18 +255,34 @@ async function requireInstitutionTheme(themeId: string) {
 export async function validateThemeAction(themeId: string): Promise<ThemeActionState> {
   const result = await requireInstitutionTheme(themeId);
   if ("error" in result) return { error: result.error };
+  const { theme } = result;
 
   await prisma.theme.update({ where: { id: themeId }, data: { status: "VALIDATED" } });
   revalidateThemePaths();
+  if (theme.proposedByUserId) {
+    await createNotification(
+      theme.proposedByUserId,
+      "Votre thème proposé a été validé.",
+      "/dashboard/etudiant/themes",
+    );
+  }
   return { success: true };
 }
 
 export async function rejectThemeAction(themeId: string): Promise<ThemeActionState> {
   const result = await requireInstitutionTheme(themeId);
   if ("error" in result) return { error: result.error };
+  const { theme } = result;
 
   await prisma.theme.update({ where: { id: themeId }, data: { status: "REJECTED" } });
   revalidateThemePaths();
+  if (theme.proposedByUserId) {
+    await createNotification(
+      theme.proposedByUserId,
+      "Votre thème proposé a été rejeté.",
+      "/dashboard/etudiant/themes",
+    );
+  }
   return { success: true };
 }
 
@@ -345,6 +383,15 @@ export async function requestThemeClosureAction(
   });
 
   revalidateThemePaths();
+  // Toujours renseigné en pratique : currentThemeId n'est jamais posé sans institutionId
+  // (voir requestThemeAction), gardé optionnel ici uniquement pour satisfaire le typage.
+  if (user.institutionId) {
+    await notifyInstitution(
+      user.institutionId,
+      "Un étudiant a demandé la clôture d'un thème.",
+      "/dashboard/etablissement/themes",
+    );
+  }
   return { success: true };
 }
 
@@ -398,14 +445,25 @@ export async function approveThemeClosureAction(closureId: string): Promise<Them
   ]);
 
   revalidateThemePaths();
+  await createNotification(
+    closure.studentId,
+    "Votre demande de clôture de thème a été approuvée.",
+    "/dashboard/etudiant/themes",
+  );
   return { success: true };
 }
 
 export async function rejectThemeClosureAction(closureId: string): Promise<ThemeActionState> {
   const result = await requireInstitutionClosure(closureId);
   if ("error" in result) return { error: result.error };
+  const { closure } = result;
 
   await prisma.themeClosureRequest.update({ where: { id: closureId }, data: { status: "REJECTED" } });
   revalidateThemePaths();
+  await createNotification(
+    closure.studentId,
+    "Votre demande de clôture de thème a été rejetée.",
+    "/dashboard/etudiant/themes",
+  );
   return { success: true };
 }
