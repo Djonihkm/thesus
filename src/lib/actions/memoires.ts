@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { del, list } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyInstitution } from "@/lib/notifications";
 import { processMemoire } from "@/lib/memoire-processing";
 import { buildDraftSkeleton } from "@/lib/memoire-draft";
 import { liveblocks, documentRoomId } from "@/lib/liveblocks";
@@ -81,6 +82,12 @@ export async function createMemoireAction(input: {
   });
 
   after(() => processMemoire(memoire.id));
+
+  await notifyInstitution(
+    user.institutionId,
+    "Un étudiant a déposé un nouveau mémoire.",
+    "/dashboard/etablissement/memoires",
+  );
 
   return { success: true, memoireId: memoire.id };
 }

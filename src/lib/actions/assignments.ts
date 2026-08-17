@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 
 export type AssignmentActionState = {
   error?: string;
@@ -59,5 +60,15 @@ export async function assignJuryToMemoireAction(
   });
 
   revalidateAssignmentPaths(memoireId, juryId);
+  await createNotification(
+    memoire.studentId,
+    "Un membre du jury a été assigné à votre soutenance.",
+    `/dashboard/etudiant/memoires/${memoireId}`,
+  );
+  await createNotification(
+    juryId,
+    "Une nouvelle soutenance vous a été assignée.",
+    "/dashboard/jury/memoires",
+  );
   return { success: true };
 }

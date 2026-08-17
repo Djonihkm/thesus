@@ -144,6 +144,7 @@ model User {
   evaluationsJury DefenseEvaluation[]
   quizAttempts    QuizAttempt[]
   authTokens      AuthToken[]
+  notifications   Notification[]
 
   proposedThemes  Theme[]             @relation("ThemeProposedBy")
   juryAssignments MemoireAssignment[] @relation("JuryAssignments")
@@ -174,6 +175,18 @@ model AuthToken {
   createdAt DateTime      @default(now())
 
   @@index([userId, type])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Memoire {

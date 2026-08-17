@@ -21,7 +21,12 @@ const columns = [
   },
   {
     title: "Contact",
-    links: [{ label: "contact@thesus.fr", href: "mailto:contact@thesus.fr" }],
+    links: [
+      {
+        label: "teamsamuraiconsulting@gmail.com",
+        href: "mailto:teamsamuraiconsulting@gmail.com",
+      },
+    ],
   },
 ];
 

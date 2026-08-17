@@ -1,8 +1,6 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 
-
-
 export default function MentionsLegalesPage() {
   return (
     <main className="min-h-screen bg-surface-light">
@@ -82,12 +80,12 @@ export default function MentionsLegalesPage() {
             <p className="mt-3 leading-7">
               Pour toute question :
               <br />
-              Email : contact@thesus.fr
+              Email : teamsamuraiconsulting@gmail.com
             </p>
           </section>
         </div>
       </section>
-        <Footer />
+      <Footer />
     </main>
   );
 }
