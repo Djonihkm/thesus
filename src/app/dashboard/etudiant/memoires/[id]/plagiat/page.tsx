@@ -5,6 +5,8 @@ import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
+import { PlagiarismPassages } from "@/components/dashboard/PlagiarismPassages";
+import { RecomputePlagiarismButton } from "@/components/dashboard/RecomputePlagiarismButton";
 import type { PlagiarismMatch } from "@/lib/plagiarism";
 
 export default async function PlagiarismReportPage({
@@ -46,6 +48,7 @@ export default async function PlagiarismReportPage({
         eyebrow="Rapport anti-plagiat"
         title={memoire.title}
         description="Comparaison sémantique et par empreintes textuelles aux autres mémoires déposés sur la plateforme."
+        actions={<RecomputePlagiarismButton memoireId={memoire.id} />}
       />
 
       <div className="mt-10 flex items-center gap-4 rounded-2xl border border-border-dark/10 bg-surface-light p-8">
@@ -80,10 +83,28 @@ export default async function PlagiarismReportPage({
             {matches.map((match) => (
               <div
                 key={match.memoireId}
-                className="flex items-center justify-between rounded-2xl border border-border-dark/10 bg-surface-light p-5"
+                className="rounded-2xl border border-border-dark/10 bg-surface-light p-5"
               >
-                <span className="text-sm text-ink">{match.title}</span>
-                <span className="text-sm font-medium text-ink">{match.score}%</span>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-ink">{match.title}</span>
+                  <span className="shrink-0 text-sm font-medium text-ink">{match.score}%</span>
+                </div>
+
+                {match.passages && match.passages.length > 0 ? (
+                  <PlagiarismPassages passages={match.passages} />
+                ) : match.passages === undefined ? (
+                  <p className="mt-3 border-t border-border-dark/10 pt-3 text-xs text-ink-muted">
+                    Détail des passages non disponible — ce rapport a été généré avant l&apos;ajout
+                    de cette fonctionnalité. Relancez l&apos;analyse ci-dessus pour le mettre à
+                    jour.
+                  </p>
+                ) : match.passagesUnavailable ? (
+                  <p className="mt-3 border-t border-border-dark/10 pt-3 text-xs text-ink-muted">
+                    Détail des passages non disponible : « {match.title} » n&apos;a pas encore été
+                    réanalysé avec cette granularité. Ouvrez son propre rapport et relancez son
+                    analyse pour débloquer le détail ici aussi.
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
