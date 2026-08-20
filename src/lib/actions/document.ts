@@ -3,12 +3,10 @@
 import { randomUUID } from "node:crypto";
 import mammoth from "mammoth";
 import { put } from "@vercel/blob";
-import { LiveblocksError } from "@liveblocks/node";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fetchBlobBuffer, toDocxBuffer } from "@/lib/memoire-processing";
 import { PdfConversionError } from "@/lib/pdf-conversion";
-import { liveblocks, documentRoomId } from "@/lib/liveblocks";
 import { createDocumentImageConverter, documentImagePathname, documentImageSrc } from "@/lib/document-images";
 
 export type SaveDocumentActionState = {
@@ -46,10 +44,11 @@ export type RegenerateDocumentActionState = {
 // Reconvertit le fichier PDF original en repassant par Adobe PDF Services + mammoth,
 // pour les mémoires dont le contenu éditable a été généré par l'ancienne méthode
 // (reconstruction de paragraphes depuis pdf-parse, sans structure et parfois tronquée).
-// Supprime aussi la room Liveblocks existante : elle contient l'ancien contenu figé dans
-// son document Yjs (initialContent n'est appliqué qu'une seule fois à la création de la
-// room), donc les threads/annotations existants sur ce mémoire sont perdus — c'est la
-// contrepartie nécessaire pour que la régénération soit visible dans l'éditeur.
+// Fait aussi pointer le mémoire vers un document Y-Sweet neuf (documentRoomVersion) : le
+// document Yjs existant contient l'ancien contenu figé (le nouveau contenu n'y serait
+// injecté qu'en tant qu'ajout, pas un remplacement propre — les CRDT ne "vident" pas un
+// document), donc les commentaires/annotations déjà déposés sur ce mémoire sont perdus —
+// c'est la contrepartie nécessaire pour que la régénération soit visible dans l'éditeur.
 export async function regenerateDocumentContentAction(
   memoireId: string,
 ): Promise<RegenerateDocumentActionState> {
@@ -83,15 +82,17 @@ export async function regenerateDocumentContentAction(
       return { error: "Aucun texte n'a pu être extrait du document." };
     }
 
-    await prisma.memoire.update({
-      where: { id: memoireId },
-      data: { extractedText: textResult.value, editableContent: htmlResult.value },
-    });
-
-    await liveblocks.deleteRoom(documentRoomId(memoireId)).catch((error) => {
-      if (error instanceof LiveblocksError && error.status === 404) return;
-      throw error;
-    });
+    await prisma.$transaction([
+      prisma.memoire.update({
+        where: { id: memoireId },
+        data: {
+          extractedText: textResult.value,
+          editableContent: htmlResult.value,
+          documentRoomVersion: { increment: 1 },
+        },
+      }),
+      prisma.documentComment.deleteMany({ where: { memoireId } }),
+    ]);
 
     return { success: true };
   } catch (error) {

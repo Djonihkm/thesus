@@ -1,23 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
-  LiveblocksProvider,
-  RoomProvider,
-  ClientSideSuspense,
-  useOthers,
-  useThreads,
-} from "@liveblocks/react/suspense";
-import {
-  useLiveblocksExtension,
-  Toolbar,
-  FloatingToolbar,
-  FloatingThreads,
-  FloatingComposer,
-} from "@liveblocks/react-tiptap";
-import { Thread } from "@liveblocks/react-ui";
-import type { ThreadData } from "@liveblocks/client";
+  YDocProvider,
+  useYDoc,
+  useAwareness,
+  useConnectionStatus,
+  usePresence,
+  usePresenceSetter,
+} from "@y-sweet/react";
 import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
 import Underline from "@tiptap/extension-underline";
@@ -27,6 +20,7 @@ import { Table } from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
+import { undoCommand, redoCommand } from "y-prosemirror";
 import {
   Table2,
   ImagePlus,
@@ -45,19 +39,40 @@ import {
   Download,
   Loader2,
   Check,
+  CheckCircle2,
   CircleAlert,
   ChevronLeft,
   ChevronRight,
+  Undo2,
+  Redo2,
+  Bold,
+  Italic,
+  Strikethrough,
+  Underline as UnderlineIcon,
+  Trash2,
 } from "lucide-react";
 import { PlagiarismFlag } from "@/lib/tiptap/plagiarism-flag-mark";
 import { AnnotateOnly } from "@/lib/tiptap/annotate-only-plugin";
 import { PageBreak } from "@/lib/tiptap/page-break";
 import { ResizableImage } from "@/lib/tiptap/resizable-image";
+import { YSweetCollaboration } from "@/lib/tiptap/y-sweet-collaboration";
+import { DocumentCommentMark } from "@/lib/tiptap/document-comment-mark";
+import { encodeCommentAnchor, decodeCommentAnchor } from "@/lib/tiptap/comment-anchor";
+import { documentRoomId } from "@/lib/y-sweet";
 import {
   saveDocumentContentAction,
   regenerateDocumentContentAction,
   uploadDocumentImageAction,
 } from "@/lib/actions/document";
+import {
+  getDocumentCommentsAction,
+  createDocumentCommentAction,
+  replyToDocumentCommentAction,
+  resolveDocumentCommentAction,
+  deleteDocumentCommentAction,
+  type DocumentCommentView,
+  type DocumentCommentReplyView,
+} from "@/lib/actions/document-comments";
 import { sendAiChatMessageAction, type ChatMessageView } from "@/lib/actions/ai-chat";
 import { escapeHtml } from "@/lib/html";
 import { FormError } from "@/components/auth/FormError";
@@ -87,34 +102,12 @@ const FONT_SIZES = [
   { label: "28", value: "28pt" },
 ] as const;
 
-import "@liveblocks/react-ui/styles.css";
-import "@liveblocks/react-tiptap/styles.css";
-
-// Nom interne du mark posé par Liveblocks sur le texte commenté (vérifié dans
-// @liveblocks/react-tiptap/dist/types.js — non exporté publiquement par le package),
-// utilisé pour retrouver la position d'un fil de discussion dans le document afin d'y
-// faire défiler la vue depuis le panneau latéral.
-const LIVEBLOCKS_COMMENT_MARK_TYPE = "liveblocksCommentMark";
-
-// Résout le vrai nom d'un auteur de commentaire (userId Liveblocks = User.id) via notre
-// propre API — sans ça, un commentaire dont l'auteur n'est pas présent dans la room en
-// direct (le cas courant : on relit un commentaire après coup) s'affiche sous "Anonymous".
-// Partagé par les deux modes (édition étudiant, annotation jury), une seule room Liveblocks
-// par mémoire.
-async function resolveUsers({ userIds }: { userIds: string[] }) {
-  const response = await fetch("/api/liveblocks-resolve-users", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userIds }),
-  });
-  if (!response.ok) return userIds.map(() => undefined);
-  return response.json();
-}
-
 export type DocumentEditorMode = "edit" | "annotate" | "read";
 
 interface DocumentEditorProps {
   memoireId: string;
+  documentRoomVersion: number;
+  userName: string;
   mode: DocumentEditorMode;
   initialContent: string;
   canRegenerate?: boolean;
@@ -125,37 +118,26 @@ interface DocumentEditorProps {
 
 export function DocumentEditor({
   memoireId,
+  documentRoomVersion,
+  userName,
   mode,
   initialContent,
   canRegenerate = false,
   initialChatMessages = [],
 }: DocumentEditorProps) {
-  return (
-    <LiveblocksProvider
-      authEndpoint="/api/liveblocks-auth"
-      badgeLocation="bottom-left"
-      resolveUsers={resolveUsers}
-    >
-      <RoomProvider id={`memoire-${memoireId}`}>
-        <ClientSideSuspense fallback={<EditorSkeleton />}>
-          <EditorRoom
-            memoireId={memoireId}
-            mode={mode}
-            initialContent={initialContent}
-            canRegenerate={canRegenerate}
-            initialChatMessages={initialChatMessages}
-          />
-        </ClientSideSuspense>
-      </RoomProvider>
-    </LiveblocksProvider>
-  );
-}
+  const docId = documentRoomId(memoireId, documentRoomVersion);
 
-function EditorSkeleton() {
   return (
-    <div className="animate-pulse rounded-2xl border border-border-neutral bg-surface-light p-8 text-sm text-ink-muted">
-      Chargement du document…
-    </div>
+    <YDocProvider docId={docId} authEndpoint="/api/y-sweet-auth" showDebuggerLink={false}>
+      <EditorRoom
+        memoireId={memoireId}
+        userName={userName}
+        mode={mode}
+        initialContent={initialContent}
+        canRegenerate={canRegenerate}
+        initialChatMessages={initialChatMessages}
+      />
+    </YDocProvider>
   );
 }
 
@@ -165,24 +147,32 @@ const PANEL_COLLAPSED_STORAGE_KEY = "thesus-document-panel-collapsed";
 
 function EditorRoom({
   memoireId,
+  userName,
   mode,
   initialContent,
   canRegenerate,
   initialChatMessages,
 }: {
   memoireId: string;
+  userName: string;
   mode: DocumentEditorMode;
   initialContent: string;
   canRegenerate: boolean;
   initialChatMessages: ChatMessageView[];
 }) {
-  const liveblocksExtension = useLiveblocksExtension({ initialContent });
+  const ydoc = useYDoc();
+  const awareness = useAwareness();
+  const connectionStatus = useConnectionStatus();
+  const fragment = useMemo(() => ydoc.getXmlFragment("default"), [ydoc]);
+
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<"pdf" | "docx" | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { threads } = useThreads({ query: { resolved: false } });
+
+  const [comments, setComments] = useState<DocumentCommentView[]>([]);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
 
   // Le chat IA est réservé à l'étudiant sur son propre document (mode "edit" — annotate est
   // le jury, read n'a pas d'édition possible) : pas d'équivalent côté jury dans cette
@@ -197,9 +187,7 @@ function EditorRoom({
   }
 
   // Repli du panneau latéral, mémorisé pour ne pas avoir à le refermer à chaque chargement
-  // de page si l'étudiant préfère le garder replié. Lu paresseusement (le composant n'est
-  // monté que côté client, sous ClientSideSuspense, mais l'initialiseur de useState peut
-  // quand même s'exécuter pendant un rendu serveur du même arbre client — d'où la garde).
+  // de page si l'étudiant préfère le garder replié.
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(PANEL_COLLAPSED_STORAGE_KEY) === "true";
@@ -209,28 +197,69 @@ function EditorRoom({
     window.localStorage.setItem(PANEL_COLLAPSED_STORAGE_KEY, String(isPanelCollapsed));
   }, [isPanelCollapsed]);
 
-  const editor = useEditor({
-    extensions: [
-      liveblocksExtension,
-      StarterKit.configure({ undoRedo: false }),
-      Highlight,
-      Underline,
-      TextStyle,
-      FontFamily,
-      FontSize,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      PageBreak,
-      Table.configure({ renderWrapper: true }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      ResizableImage,
-      PlagiarismFlag,
-      ...(mode === "annotate" ? [AnnotateOnly] : []),
-    ],
-    editable: mode !== "read",
-    immediatelyRender: false,
-  });
+  const editor = useEditor(
+    {
+      extensions: [
+        YSweetCollaboration.configure({ fragment, awareness }),
+        StarterKit.configure({ undoRedo: false }),
+        Highlight,
+        Underline,
+        TextStyle,
+        FontFamily,
+        FontSize,
+        TextAlign.configure({ types: ["heading", "paragraph"] }),
+        PageBreak,
+        Table.configure({ renderWrapper: true }),
+        TableRow,
+        TableHeader,
+        TableCell,
+        ResizableImage,
+        PlagiarismFlag,
+        DocumentCommentMark,
+        ...(mode === "annotate" ? [AnnotateOnly] : []),
+      ],
+      editable: mode !== "read",
+      immediatelyRender: false,
+    },
+    [fragment, awareness],
+  );
+
+  // Amorce le document avec le contenu déjà enregistré (mammoth/squelette de brouillon) la
+  // toute première fois qu'il est ouvert — seul le mode "edit" (l'étudiant propriétaire)
+  // amorce, pour ne jamais risquer une double amorce si étudiant et jury ouvrent le document
+  // au même moment. setContent passe par une transaction normale, que le plugin de
+  // synchronisation Yjs répercute vers le document partagé comme n'importe quelle frappe.
+  const hasSeededRef = useRef(false);
+  useEffect(() => {
+    if (!editor || mode !== "edit" || hasSeededRef.current) return;
+    if (connectionStatus !== "connected") return;
+
+    hasSeededRef.current = true;
+    if (fragment.length === 0 && initialContent) {
+      // setContent déclenche un flushSync interne (TipTap/ProseMirror) — inacceptable tant
+      // que React est encore en train de committer cet effet. queueMicrotask le repousse
+      // juste après, une fois le rendu terminé.
+      queueMicrotask(() => editor.commands.setContent(initialContent));
+    }
+  }, [editor, mode, connectionStatus, fragment, initialContent]);
+
+  // Présence : nom réel depuis la session NextAuth (passé en prop depuis la page serveur),
+  // plus besoin d'un resolveUsers séparé comme avec Liveblocks.
+  const setPresence = usePresenceSetter<{ name: string }>();
+  useEffect(() => {
+    setPresence({ name: userName });
+  }, [setPresence, userName]);
+  const others = usePresence<{ name: string }>();
+
+  useEffect(() => {
+    let cancelled = false;
+    getDocumentCommentsAction(memoireId).then((result) => {
+      if (!cancelled && "comments" in result) setComments(result.comments);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [memoireId]);
 
   const performSave = useCallback(async () => {
     if (!editor) return;
@@ -306,11 +335,86 @@ function EditorRoom({
     setTimeout(() => setExportingFormat(null), 3000);
   }
 
+  async function handleSubmitComment(content: string) {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const anchor = encodeCommentAnchor(editor, from, to);
+
+    const result = await createDocumentCommentAction(memoireId, content, anchor);
+    setIsComposerOpen(false);
+    if (result.error || !result.comment) {
+      setError(result.error ?? "Échec de l'ajout du commentaire.");
+      return;
+    }
+
+    setComments((current) => [...current, result.comment!]);
+    editor
+      .chain()
+      .setTextSelection({ from, to })
+      .setDocumentComment({ commentId: result.comment.id })
+      .run();
+  }
+
+  async function handleReply(parentId: string, content: string) {
+    const result = await replyToDocumentCommentAction(memoireId, parentId, content);
+    if (result.error || !result.reply) {
+      setError(result.error ?? "Échec de l'envoi de la réponse.");
+      return;
+    }
+    const reply = result.reply;
+    setComments((current) =>
+      current.map((comment) =>
+        comment.id === parentId ? { ...comment, replies: [...comment.replies, reply] } : comment,
+      ),
+    );
+  }
+
+  async function handleResolve(commentId: string) {
+    const result = await resolveDocumentCommentAction(memoireId, commentId, true);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setComments((current) => current.filter((comment) => comment.id !== commentId));
+    editor?.chain().unsetDocumentCommentById(commentId).run();
+  }
+
+  async function handleDelete(commentId: string, isRoot: boolean) {
+    const result = await deleteDocumentCommentAction(memoireId, commentId);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    if (isRoot) {
+      setComments((current) => current.filter((comment) => comment.id !== commentId));
+      editor?.chain().unsetDocumentCommentById(commentId).run();
+    } else {
+      setComments((current) =>
+        current.map((comment) => ({
+          ...comment,
+          replies: comment.replies.filter((reply) => reply.id !== commentId),
+        })),
+      );
+    }
+  }
+
+  function goToComment(comment: DocumentCommentView) {
+    if (!editor || !comment.anchorFrom || !comment.anchorTo) return;
+    const range = decodeCommentAnchor(editor, {
+      anchorFrom: comment.anchorFrom,
+      anchorTo: comment.anchorTo,
+    });
+    if (!range) return;
+    const domInfo = editor.view.domAtPos(range.from);
+    const element = domInfo.node instanceof HTMLElement ? domInfo.node : domInfo.node.parentElement;
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <PresenceAvatars />
+          <PresenceAvatars others={others} />
           {mode === "edit" ? <SaveStatusIndicator status={saveStatus} /> : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
@@ -374,8 +478,16 @@ function EditorRoom({
         </div>
       </div>
 
-      {mode === "edit" ? <FloatingToolbar editor={editor} /> : null}
-      {mode === "annotate" ? <AnnotateFloatingToolbar editor={editor} /> : null}
+      {mode !== "read" ? (
+        <SelectionBubbleMenu
+          editor={editor}
+          mode={mode}
+          isComposerOpen={isComposerOpen}
+          onOpenComposer={() => setIsComposerOpen(true)}
+          onCancelComposer={() => setIsComposerOpen(false)}
+          onSubmitComment={handleSubmitComment}
+        />
+      ) : null}
 
       {/* Réserve la place de la colonne à droite pour ne pas passer sous le panneau latéral
           (en position fixe, voir EditorSidePanel) — largeur synchronisée avec son état
@@ -387,7 +499,8 @@ function EditorRoom({
 
       <EditorSidePanel
         editor={editor}
-        threads={threads}
+        comments={comments}
+        currentUserName={userName}
         showChat={showChat}
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -397,14 +510,11 @@ function EditorRoom({
         onCollapsedChange={setIsPanelCollapsed}
         memoireId={memoireId}
         initialChatMessages={initialChatMessages}
+        onNavigateToComment={goToComment}
+        onReply={handleReply}
+        onResolve={handleResolve}
+        onDelete={handleDelete}
       />
-
-      {mode !== "read" ? (
-        <>
-          <FloatingThreads editor={editor} threads={threads} />
-          <FloatingComposer editor={editor} />
-        </>
-      ) : null}
     </div>
   );
 }
@@ -438,6 +548,43 @@ function SaveStatusIndicator({ status }: { status: "idle" | "saving" | "saved" |
   );
 }
 
+// Bouton d'icône compact partagé par la barre d'outils fixe et les menus flottants —
+// remplace les primitives de mise en forme (Toolbar.Button/Toolbar.Toggle) qui venaient
+// jusqu'ici de @liveblocks/react-tiptap.
+function ToolbarIconButton({
+  label,
+  icon,
+  onClick,
+  active = false,
+  disabled = false,
+}: {
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        active ? "bg-accent/15 text-accent-dark" : "text-ink-muted hover:bg-surface-neutral hover:text-ink"
+      }`}
+    >
+      {icon}
+    </button>
+  );
+}
+
+function ToolbarSeparator() {
+  return <span className="mx-1 h-5 w-px shrink-0 bg-border-neutral" aria-hidden="true" />;
+}
+
 const ALIGN_BUTTONS = [
   { value: "left", icon: AlignLeft, label: "Aligner à gauche" },
   { value: "center", icon: AlignCenter, label: "Centrer" },
@@ -457,7 +604,7 @@ function EditFixedToolbar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const { fontFamily, fontSize, textAlign } = useEditorState({
+  const { fontFamily, fontSize, textAlign, canUndo, canRedo } = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => ({
       fontFamily: currentEditor?.isActive("textStyle")
@@ -470,8 +617,10 @@ function EditFixedToolbar({
         (["left", "center", "right", "justify"] as const).find((align) =>
           currentEditor?.isActive({ textAlign: align }),
         ) ?? "left",
+      canUndo: currentEditor ? undoCommand(currentEditor.state) : false,
+      canRedo: currentEditor ? redoCommand(currentEditor.state) : false,
     }),
-  }) ?? { fontFamily: "", fontSize: "", textAlign: "left" as const };
+  }) ?? { fontFamily: "", fontSize: "", textAlign: "left" as const, canUndo: false, canRedo: false };
 
   function insertTable() {
     editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
@@ -494,9 +643,20 @@ function EditFixedToolbar({
   }
 
   return (
-    <Toolbar editor={editor}>
-      <Toolbar.SectionHistory />
-      <Toolbar.Separator />
+    <div className="flex flex-wrap items-center gap-1 px-3 py-2">
+      <ToolbarIconButton
+        label="Annuler"
+        icon={<Undo2 size={16} />}
+        disabled={!canUndo}
+        onClick={() => editor && undoCommand(editor.state, editor.view.dispatch)}
+      />
+      <ToolbarIconButton
+        label="Rétablir"
+        icon={<Redo2 size={16} />}
+        disabled={!canRedo}
+        onClick={() => editor && redoCommand(editor.state, editor.view.dispatch)}
+      />
+      <ToolbarSeparator />
 
       <select
         aria-label="Police"
@@ -532,40 +692,40 @@ function EditFixedToolbar({
         ))}
       </select>
 
-      <Toolbar.Separator />
+      <ToolbarSeparator />
 
       {ALIGN_BUTTONS.map((align) => (
-        <Toolbar.Toggle
+        <ToolbarIconButton
           key={align.value}
-          name={align.label}
+          label={align.label}
           icon={<align.icon size={16} />}
           active={textAlign === align.value}
           onClick={() => editor?.chain().focus().setTextAlign(align.value).run()}
         />
       ))}
 
-      <Toolbar.Separator />
+      <ToolbarSeparator />
 
-      <Toolbar.Button name="Insérer un tableau" icon={<Table2 size={16} />} onClick={insertTable} />
-      <Toolbar.Button
-        name="Insérer une image"
+      <ToolbarIconButton label="Insérer un tableau" icon={<Table2 size={16} />} onClick={insertTable} />
+      <ToolbarIconButton
+        label="Insérer une image"
         icon={<ImagePlus size={16} />}
         disabled={isUploading}
         onClick={() => fileInputRef.current?.click()}
       />
-      <Toolbar.Button
-        name="Ligne horizontale"
+      <ToolbarIconButton
+        label="Ligne horizontale"
         icon={<Minus size={16} />}
         onClick={() => editor?.chain().focus().setHorizontalRule().run()}
       />
-      <Toolbar.Button
-        name="Saut de page"
+      <ToolbarIconButton
+        label="Saut de page"
         icon={<ScissorsLineDashed size={16} />}
         onClick={() => editor?.chain().focus().setPageBreak().run()}
       />
 
-      <Toolbar.Separator />
-      <Toolbar.Button name="Assistant IA" icon={<Sparkles size={16} />} onClick={onOpenChat} />
+      <ToolbarSeparator />
+      <ToolbarIconButton label="Assistant IA" icon={<Sparkles size={16} />} onClick={onOpenChat} />
       <input
         ref={fileInputRef}
         type="file"
@@ -573,26 +733,143 @@ function EditFixedToolbar({
         className="hidden"
         onChange={handleImageSelected}
       />
-    </Toolbar>
+    </div>
   );
 }
 
-function AnnotateFloatingToolbar({ editor }: { editor: Editor | null }) {
+// Menu flottant sur sélection de texte — remplace le FloatingToolbar de
+// @liveblocks/react-tiptap. Contenu différent selon le mode : mise en forme de base en
+// édition (l'étudiant), surlignage/soulignage en annotation (le jury) — mais le bouton
+// Commenter est disponible dans les deux, même déclenchement qu'avant.
+function SelectionBubbleMenu({
+  editor,
+  mode,
+  isComposerOpen,
+  onOpenComposer,
+  onCancelComposer,
+  onSubmitComment,
+}: {
+  editor: Editor | null;
+  mode: DocumentEditorMode;
+  isComposerOpen: boolean;
+  onOpenComposer: () => void;
+  onCancelComposer: () => void;
+  onSubmitComment: (content: string) => void;
+}) {
+  if (!editor) return null;
+
   return (
-    <FloatingToolbar editor={editor}>
-      <ToggleButton
-        label="Surligner"
-        isActive={editor?.isActive("highlight") ?? false}
-        onToggle={() => editor?.chain().focus().toggleHighlight().run()}
+    <BubbleMenu
+      editor={editor}
+      shouldShow={({ state }) => !state.selection.empty}
+      updateDelay={100}
+    >
+      <div className="flex items-center gap-0.5 rounded-lg border border-border-neutral bg-surface-light p-1 shadow-lg shadow-ink/10">
+        {isComposerOpen ? (
+          <CommentComposer onSubmit={onSubmitComment} onCancel={onCancelComposer} />
+        ) : (
+          <>
+            {mode === "edit" ? (
+              <>
+                <ToolbarIconButton
+                  label="Gras"
+                  icon={<Bold size={15} />}
+                  active={editor.isActive("bold")}
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                />
+                <ToolbarIconButton
+                  label="Italique"
+                  icon={<Italic size={15} />}
+                  active={editor.isActive("italic")}
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                />
+                <ToolbarIconButton
+                  label="Souligner"
+                  icon={<UnderlineIcon size={15} />}
+                  active={editor.isActive("underline")}
+                  onClick={() => editor.chain().focus().toggleUnderline().run()}
+                />
+                <ToolbarIconButton
+                  label="Barré"
+                  icon={<Strikethrough size={15} />}
+                  active={editor.isActive("strike")}
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                />
+              </>
+            ) : (
+              <>
+                <ToggleButton
+                  label="Surligner"
+                  isActive={editor.isActive("highlight")}
+                  onToggle={() => editor.chain().focus().toggleHighlight().run()}
+                />
+                <ToggleButton
+                  label="Souligner"
+                  isActive={editor.isActive("underline")}
+                  onToggle={() => editor.chain().focus().toggleUnderline().run()}
+                />
+              </>
+            )}
+            <ToolbarSeparator />
+            <ToolbarIconButton
+              label="Commenter"
+              icon={<MessageSquare size={15} />}
+              onClick={onOpenComposer}
+            />
+          </>
+        )}
+      </div>
+    </BubbleMenu>
+  );
+}
+
+function CommentComposer({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (content: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
+
+  function submit() {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    onSubmit(trimmed);
+    setValue("");
+  }
+
+  return (
+    <div className="flex w-72 flex-col gap-2 p-1.5">
+      <textarea
+        autoFocus
+        rows={3}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onCancel();
+        }}
+        placeholder="Ajouter un commentaire…"
+        className="resize-none rounded-md border border-ink/15 bg-surface-light p-2 text-sm text-ink outline-none focus:border-accent"
       />
-      <ToggleButton
-        label="Souligner"
-        isActive={editor?.isActive("underline") ?? false}
-        onToggle={() => editor?.chain().focus().toggleUnderline().run()}
-      />
-      <Toolbar.Separator />
-      <Toolbar.SectionCollaboration />
-    </FloatingToolbar>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-surface-neutral hover:text-ink"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!value.trim()}
+          className="rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-paper transition hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Commenter
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -621,61 +898,149 @@ function ToggleButton({
   );
 }
 
-function scrollToCommentThread(editor: Editor | null, threadId: string) {
-  if (!editor) return;
+const relativeTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
-  let targetPos: number | null = null;
-  editor.state.doc.descendants((node, pos) => {
-    if (targetPos !== null) return false;
-    const hasMark = node.marks.some(
-      (mark) => mark.type.name === LIVEBLOCKS_COMMENT_MARK_TYPE && mark.attrs.threadId === threadId,
-    );
-    if (hasMark) {
-      targetPos = pos;
-      return false;
-    }
-    return true;
-  });
-
-  if (targetPos === null) return;
-  const dom = editor.view.nodeDOM(targetPos);
-  const element = dom instanceof HTMLElement ? dom : dom?.parentElement;
-  element?.scrollIntoView({ behavior: "smooth", block: "center" });
+function CommentBubble({
+  comment,
+  currentUserName,
+  onDelete,
+}: {
+  comment: DocumentCommentView | DocumentCommentReplyView;
+  currentUserName: string;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-ink">{comment.authorName}</span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-[11px] text-ink-muted">
+            {relativeTimeFormatter.format(new Date(comment.createdAt))}
+          </span>
+          {comment.authorName === currentUserName ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label="Supprimer le commentaire"
+              className="text-ink-muted transition hover:text-flag"
+            >
+              <Trash2 size={12} />
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <p className="text-sm whitespace-pre-wrap text-ink">{comment.content}</p>
+    </div>
+  );
 }
 
-function CommentsList({
-  editor,
-  threads,
-  onNavigate,
-}: {
-  editor: Editor | null;
-  threads: ThreadData[];
-  onNavigate: () => void;
-}) {
-  function goToThread(threadId: string) {
-    scrollToCommentThread(editor, threadId);
-    onNavigate();
+function ReplyComposer({ onSubmit }: { onSubmit: (content: string) => void }) {
+  const [value, setValue] = useState("");
+
+  function submit() {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    onSubmit(trimmed);
+    setValue("");
   }
 
   return (
+    <div className="flex items-end gap-2 border-t border-border-neutral pt-2">
+      <textarea
+        rows={1}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            submit();
+          }
+        }}
+        placeholder="Répondre…"
+        className="min-h-0 flex-1 resize-none rounded-lg border border-ink/15 bg-surface-light px-2.5 py-1.5 text-xs text-ink outline-none focus:border-accent"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={!value.trim()}
+        aria-label="Envoyer la réponse"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-paper transition hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <Send size={12} />
+      </button>
+    </div>
+  );
+}
+
+function CommentsList({
+  comments,
+  currentUserName,
+  onNavigate,
+  onReply,
+  onResolve,
+  onDelete,
+}: {
+  comments: DocumentCommentView[];
+  currentUserName: string;
+  onNavigate: (comment: DocumentCommentView) => void;
+  onReply: (parentId: string, content: string) => void;
+  onResolve: (commentId: string) => void;
+  onDelete: (commentId: string, isRoot: boolean) => void;
+}) {
+  return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-      {threads.length === 0 ? (
+      {comments.length === 0 ? (
         <p className="px-1 py-2 text-sm text-ink-muted">Aucun commentaire sur ce document.</p>
       ) : (
-        threads.map((thread) => (
+        comments.map((comment) => (
           <div
-            key={thread.id}
+            key={comment.id}
             className="shrink-0 overflow-hidden rounded-xl border border-border-neutral bg-surface-light"
           >
-            <button
-              type="button"
-              onClick={() => goToThread(thread.id)}
-              className="flex w-full items-center gap-1.5 border-b border-border-neutral bg-surface-neutral/60 px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:text-ink"
-            >
-              <ArrowRight size={12} />
-              Voir dans le texte
-            </button>
-            <Thread thread={thread} showComposer="collapsed" />
+            <div className="flex items-center justify-between gap-1.5 border-b border-border-neutral bg-surface-neutral/60 px-3 py-1.5">
+              <button
+                type="button"
+                onClick={() => onNavigate(comment)}
+                disabled={!comment.anchorFrom}
+                className="flex items-center gap-1.5 text-xs font-medium text-ink-muted transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ArrowRight size={12} />
+                Voir dans le texte
+              </button>
+              <button
+                type="button"
+                onClick={() => onResolve(comment.id)}
+                aria-label="Marquer comme résolu"
+                title="Marquer comme résolu"
+                className="text-ink-muted transition hover:text-accent-dark"
+              >
+                <CheckCircle2 size={14} />
+              </button>
+            </div>
+            <div className="px-3">
+              <CommentBubble
+                comment={comment}
+                currentUserName={currentUserName}
+                onDelete={() => onDelete(comment.id, true)}
+              />
+              {comment.replies.map((reply) => (
+                <div key={reply.id} className="border-t border-border-neutral">
+                  <CommentBubble
+                    comment={reply}
+                    currentUserName={currentUserName}
+                    onDelete={() => onDelete(reply.id, false)}
+                  />
+                </div>
+              ))}
+              <div className="pb-2">
+                <ReplyComposer onSubmit={(content) => onReply(comment.id, content)} />
+              </div>
+            </div>
           </div>
         ))
       )}
@@ -828,7 +1193,8 @@ function AiChatBody({
 // (mode "edit" uniquement), un seul panneau simple sinon (mode "annotate", jury).
 function EditorSidePanel({
   editor,
-  threads,
+  comments,
+  currentUserName,
   showChat,
   activeTab,
   onTabChange,
@@ -838,9 +1204,14 @@ function EditorSidePanel({
   onCollapsedChange,
   memoireId,
   initialChatMessages,
+  onNavigateToComment,
+  onReply,
+  onResolve,
+  onDelete,
 }: {
   editor: Editor | null;
-  threads: ThreadData[];
+  comments: DocumentCommentView[];
+  currentUserName: string;
   showChat: boolean;
   activeTab: PanelTab;
   onTabChange: (tab: PanelTab) => void;
@@ -850,8 +1221,12 @@ function EditorSidePanel({
   onCollapsedChange: (collapsed: boolean) => void;
   memoireId: string;
   initialChatMessages: ChatMessageView[];
+  onNavigateToComment: (comment: DocumentCommentView) => void;
+  onReply: (parentId: string, content: string) => void;
+  onResolve: (commentId: string) => void;
+  onDelete: (commentId: string, isRoot: boolean) => void;
 }) {
-  const commentsLabel = `Commentaires${threads.length > 0 ? ` (${threads.length})` : ""}`;
+  const commentsLabel = `Commentaires${comments.length > 0 ? ` (${comments.length})` : ""}`;
   const resolvedTab: PanelTab = showChat ? activeTab : "comments";
 
   function closeMobile() {
@@ -923,11 +1298,23 @@ function EditorSidePanel({
     );
   }
 
+  function navigateAndClose(comment: DocumentCommentView) {
+    onNavigateToComment(comment);
+    closeMobile();
+  }
+
   const body =
     resolvedTab === "chat" ? (
       <AiChatBody memoireId={memoireId} editor={editor} initialMessages={initialChatMessages} />
     ) : (
-      <CommentsList editor={editor} threads={threads} onNavigate={closeMobile} />
+      <CommentsList
+        comments={comments}
+        currentUserName={currentUserName}
+        onNavigate={navigateAndClose}
+        onReply={onReply}
+        onResolve={onResolve}
+        onDelete={onDelete}
+      />
     );
 
   const floatingLabel = resolvedTab === "chat" ? "Assistant IA" : commentsLabel;
@@ -982,19 +1369,19 @@ function EditorSidePanel({
   );
 }
 
-function PresenceAvatars() {
-  const others = useOthers();
-  if (others.length === 0) return null;
+function PresenceAvatars({ others }: { others: Map<number, { name: string }> }) {
+  const otherUsers = Array.from(others.values());
+  if (otherUsers.length === 0) return null;
 
   return (
     <div className="flex -space-x-2">
-      {others.slice(0, 5).map((other) => (
+      {otherUsers.slice(0, 5).map((user, index) => (
         <div
-          key={other.connectionId}
-          title={typeof other.info?.name === "string" ? other.info.name : "Utilisateur"}
+          key={index}
+          title={user.name || "Utilisateur"}
           className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-light bg-accent/20 text-xs font-medium text-accent-dark"
         >
-          {(typeof other.info?.name === "string" ? other.info.name : "?").slice(0, 1).toUpperCase()}
+          {(user.name || "?").slice(0, 1).toUpperCase()}
         </div>
       ))}
     </div>

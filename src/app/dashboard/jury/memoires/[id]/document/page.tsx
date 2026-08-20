@@ -46,6 +46,8 @@ export default async function JuryDocumentPage({
       <div className="mt-8">
         <DocumentEditor
           memoireId={memoire.id}
+          documentRoomVersion={memoire.documentRoomVersion}
+          userName={user.name}
           mode="annotate"
           initialContent={memoire.editableContent ?? "<p></p>"}
         />

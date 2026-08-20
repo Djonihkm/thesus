@@ -48,6 +48,8 @@ export default async function StudentDocumentPage({
       <div className="mt-8">
         <DocumentEditor
           memoireId={memoire.id}
+          documentRoomVersion={memoire.documentRoomVersion}
+          userName={user.name}
           mode="edit"
           initialContent={memoire.editableContent ?? "<p></p>"}
           canRegenerate={memoire.fileType === "PDF"}

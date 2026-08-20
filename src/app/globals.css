@@ -119,6 +119,16 @@ button:not(:disabled),
   padding: 0 0.1em;
 }
 
+/* Passage ancré par un commentaire non résolu (DocumentCommentMark, voir
+   document-comment-mark.ts) — un soulignement plutôt qu'un fond plein comme mark/
+   plagiarism-flag-mark ci-dessus, pour rester lisible quand les trois se superposent sur
+   le même texte. Retiré du document dès que le commentaire est résolu (voir
+   unsetDocumentCommentById), donc pas de variante "résolu" à styler ici. */
+.tiptap-document .ProseMirror .document-comment-mark {
+  border-bottom: 2px solid var(--color-accent-dark);
+  text-underline-offset: 2px;
+}
+
 .tiptap-document .ProseMirror img {
   max-width: 100%;
   height: auto;

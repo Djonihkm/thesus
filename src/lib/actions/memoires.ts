@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 import { notifyInstitution } from "@/lib/notifications";
 import { processMemoire } from "@/lib/memoire-processing";
 import { buildDraftSkeleton } from "@/lib/memoire-draft";
-import { liveblocks, documentRoomId } from "@/lib/liveblocks";
 import {
   MAX_FILE_SIZE_BYTES,
   fileTypeFromMimeType,
@@ -150,10 +149,12 @@ export type DeleteMemoireActionState = {
 // Suppression ouverte à tous les statuts (plus seulement FAILED) — nécessaire pour
 // nettoyer d'anciens mémoires de test antérieurs au système de thèmes. Seul le
 // propriétaire peut supprimer son mémoire. Le nettoyage couvre : fichier original +
-// images du document sur Vercel Blob, tous les enregistrements liés (rapports, quiz,
+// images du document sur Vercel Blob, et tous les enregistrements liés (rapports, quiz,
 // simulation de jury, évaluations, assignation) puisqu'aucune de ces relations n'a de
-// cascade en base, et la room Liveblocks du document (best-effort, non bloquant — les
-// données de commentaires ne sont stockées que côté Liveblocks, jamais en base ici).
+// cascade en base. Les commentaires du document (DocumentComment), eux, cascadent
+// automatiquement via le schéma (onDelete: Cascade sur memoireId) — pas de ligne manuelle
+// nécessaire ici. Le document Y-Sweet associé n'a rien à nettoyer explicitement : sans
+// suppression d'un mémoire, plus personne ne redemandera jamais son docId.
 export async function deleteMemoireAction(memoireId: string): Promise<DeleteMemoireActionState> {
   const session = await auth();
   if (!session?.user || session.user.role !== "STUDENT") {
@@ -178,11 +179,6 @@ export async function deleteMemoireAction(memoireId: string): Promise<DeleteMemo
     // Le nettoyage du stockage ne doit pas empêcher la suppression de l'enregistrement —
     // un fichier orphelin sur Blob est un moindre mal comparé à un mémoire bloqué en base.
   }
-
-  await liveblocks.deleteRoom(documentRoomId(memoireId)).catch(() => {
-    // Best-effort : une room Liveblocks orpheline n'est pas bloquante (voir commentaire
-    // ci-dessus).
-  });
 
   await prisma.$transaction([
     prisma.memoireAssignment.deleteMany({ where: { memoireId } }),

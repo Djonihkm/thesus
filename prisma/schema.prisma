@@ -140,11 +140,12 @@ model User {
   specialty    String?
   juryFunction JuryFunction?
 
-  memoiresDeposes Memoire[]           @relation("MemoireStudent")
-  evaluationsJury DefenseEvaluation[]
-  quizAttempts    QuizAttempt[]
-  authTokens      AuthToken[]
-  notifications   Notification[]
+  memoiresDeposes  Memoire[]           @relation("MemoireStudent")
+  evaluationsJury  DefenseEvaluation[]
+  quizAttempts     QuizAttempt[]
+  authTokens       AuthToken[]
+  notifications    Notification[]
+  documentComments DocumentComment[]
 
   proposedThemes  Theme[]             @relation("ThemeProposedBy")
   juryAssignments MemoireAssignment[] @relation("JuryAssignments")
@@ -159,7 +160,7 @@ model User {
   // Thème verrouillé sur cet étudiant une fois sa demande de sélection approuvée — au plus
   // un thème "pris" par utilisateur (contrainte applicative, pas de @@unique ici car
   // takenByUserId vit sur Theme).
-  takenThemes     Theme[]           @relation("ThemeTakenBy")
+  takenThemes     Theme[]               @relation("ThemeTakenBy")
   themeSelections ThemeSelection[]
   themeClosures   ThemeClosureRequest[]
 }
@@ -215,12 +216,20 @@ model Memoire {
   // par paragraphes depuis extractedText pour un PDF) — le contenu "vivant" affiché/édité
   // dans la vue document, distinct du fichier original conservé dans fileUrl.
   editableContent String? @db.Text
+
+  // Suffixe de l'identifiant du document Y-Sweet (voir documentRoomId dans src/lib/y-sweet.ts) —
+  // incrémenté à chaque régénération depuis le PDF original (regenerateDocumentContentAction).
+  // Y-Sweet n'a pas d'équivalent à la suppression de room de Liveblocks : on obtient un
+  // document Yjs neuf en changeant simplement l'identifiant auquel il correspond, plutôt que
+  // de tenter de vider un document existant (les CRDT ne s'y prêtent pas proprement).
+  documentRoomVersion Int @default(1)
+
   studentId     String
-  student       User          @relation("MemoireStudent", fields: [studentId], references: [id])
+  student       User        @relation("MemoireStudent", fields: [studentId], references: [id])
   institutionId String
-  institution   Institution   @relation(fields: [institutionId], references: [id])
-  submittedAt   DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  institution   Institution @relation(fields: [institutionId], references: [id])
+  submittedAt   DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   // Thème choisi (dans la liste validée de l'établissement) ou proposé par l'étudiant —
   // nullable : un mémoire peut exister avant qu'un thème soit choisi/validé.
@@ -234,6 +243,7 @@ model Memoire {
   evaluations      DefenseEvaluation[]
   assignments      MemoireAssignment[]
   aiChatMessages   AiChatMessage[]
+  documentComments DocumentComment[]
 }
 
 // Historique de la conversation avec l'assistant IA de co-rédaction, dans l'éditeur de
@@ -250,8 +260,41 @@ model AiChatMessage {
   @@index([memoireId, createdAt])
 }
 
+// Commentaires/annotations sur le document (remplace Liveblocks Comments, retiré pour son
+// badge non désactivable en tier gratuit — voir DocumentEditor.tsx). Fil simple à un niveau
+// (un commentaire racine + ses réponses, pas de réponses imbriquées).
+model DocumentComment {
+  id        String  @id @default(cuid())
+  memoireId String
+  memoire   Memoire @relation(fields: [memoireId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String  @db.Text
+
+  // Ancrage dans le texte, uniquement sur le commentaire racine d'un fil (les réponses
+  // n'ancrent rien, elles héritent visuellement de l'ancrage du parent). Positions
+  // *relatives* Yjs (Y.RelativePosition, voir absolutePositionToRelativePosition dans
+  // y-prosemirror), encodées en base64 via Y.encodeRelativePosition — contrairement à un
+  // simple offset ProseMirror absolu, une position relative reste valide après des éditions
+  // concurrentes ailleurs dans le document, ce qui est indispensable dans un document
+  // collaboratif où le texte autour du passage commenté peut changer.
+  anchorFrom String? @db.Text
+  anchorTo   String? @db.Text
+
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parentId String?
+  parent   DocumentComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  DocumentComment[] @relation("CommentReplies")
+
+  @@index([memoireId, createdAt])
+  @@index([parentId])
+}
+
 model Theme {
-  id          String      @id @default(cuid())
+  id          String  @id @default(cuid())
   title       String
   description String?
 
@@ -267,7 +310,7 @@ model Theme {
   // Renseigné si le thème a été proposé par un étudiant (à valider par l'établissement) ;
   // null si créé directement par l'établissement (déjà VALIDATED).
   proposedByUserId String?
-  proposedBy       User?    @relation("ThemeProposedBy", fields: [proposedByUserId], references: [id])
+  proposedBy       User?   @relation("ThemeProposedBy", fields: [proposedByUserId], references: [id])
 
   // Renseigné dès qu'une demande de sélection est approuvée pour cet étudiant — le thème
   // n'est alors plus disponible pour personne d'autre (exclusivité). Distinct du statut
@@ -312,15 +355,15 @@ model ThemeSelection {
 // à null. Ne touche jamais Memoire.themeId ni MemoireAssignment — les mémoires déjà déposés
 // sous ce thème gardent leur lien et leur éventuelle assignation jury intacts.
 model ThemeClosureRequest {
-  id        String              @id @default(cuid())
+  id        String             @id @default(cuid())
   themeId   String
-  theme     Theme               @relation(fields: [themeId], references: [id])
+  theme     Theme              @relation(fields: [themeId], references: [id])
   studentId String
-  student   User                @relation(fields: [studentId], references: [id])
+  student   User               @relation(fields: [studentId], references: [id])
   reason    ThemeClosureReason
-  status    ThemeClosureStatus  @default(PENDING)
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  status    ThemeClosureStatus @default(PENDING)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   @@index([themeId, status])
   @@index([studentId, status])
@@ -331,13 +374,13 @@ model ThemeClosureRequest {
 // quand. L'assignation "active" pour un mémoire est la ligne la plus récente
 // (orderBy assignedAt desc, take 1).
 model MemoireAssignment {
-  id        String           @id @default(cuid())
-  memoireId String
-  memoire   Memoire          @relation(fields: [memoireId], references: [id])
-  juryId    String
-  jury      User             @relation("JuryAssignments", fields: [juryId], references: [id])
-  status    AssignmentStatus @default(SUGGESTED)
-  assignedAt DateTime        @default(now())
+  id         String           @id @default(cuid())
+  memoireId  String
+  memoire    Memoire          @relation(fields: [memoireId], references: [id])
+  juryId     String
+  jury       User             @relation("JuryAssignments", fields: [juryId], references: [id])
+  status     AssignmentStatus @default(SUGGESTED)
+  assignedAt DateTime         @default(now())
 
   @@index([memoireId, assignedAt])
 }

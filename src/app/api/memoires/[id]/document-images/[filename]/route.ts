@@ -1,7 +1,7 @@
 // src/app/api/memoires/[id]/document-images/[filename]/route.ts
 //
 // Sert les images extraites du document éditable (stockées sur Vercel Blob en accès
-// privé) — même règle d'accès que la room Liveblocks du document (propriétaire étudiant
+// privé) — même règle d'accès que le document collaboratif Y-Sweet (propriétaire étudiant
 // ou jury de la même institution une fois le mémoire COMPLETED).
 import { NextResponse } from "next/server";
 import { get } from "@vercel/blob";

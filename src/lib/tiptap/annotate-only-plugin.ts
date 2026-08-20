@@ -3,9 +3,9 @@
 // Restreint l'éditeur à des transactions de marks uniquement (surlignage, soulignage,
 // signalement) : rejette toute transaction qui modifie le contenu texte lui-même
 // (insertion, suppression, découpage/fusion de blocs). C'est la barrière technique
-// réelle derrière le mode "annotation" du jury — Liveblocks n'a pas de permission plus
-// fine que lecture/écriture par room, donc cette restriction vit côté éditeur, pas côté
-// serveur Liveblocks.
+// réelle derrière le mode "annotation" du jury — Y-Sweet (comme Liveblocks avant lui)
+// n'a pas de permission plus fine que lecture/écriture complète par document, donc cette
+// restriction vit côté éditeur, pas côté serveur.
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
