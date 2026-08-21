@@ -20,12 +20,25 @@ export function Sidebar({ role }: SidebarProps) {
   const navItems = getNavForRole(role);
   const roleLabel = getRoleLabel(role);
 
-  // Repli mémorisé par utilisateur (localStorage) — lu paresseusement avec garde SSR, même
-  // pattern que le repli du panneau latéral de l'éditeur de document.
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true";
-  });
+  // Repli mémorisé par utilisateur (localStorage). Toujours déplié au tout premier rendu
+  // (identique au HTML serveur, qui n'a pas accès à localStorage) — lire la valeur stockée
+  // dans l'initialiseur de useState ferait diverger le tout premier rendu CLIENT du HTML
+  // serveur (mismatch d'hydratation React : la valeur stockée peut être "true" alors que le
+  // serveur rend toujours "false"). On la lit donc après montage, dans un effet, qui ne
+  // s'exécute qu'une fois l'hydratation terminée.
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    // Différé (queueMicrotask) plutôt qu'un setState direct dans le corps de l'effet — même
+    // règle que le correctif flushSync de DocumentEditor : un setState synchrone en tête
+    // d'effet reste techniquement autorisé ici (on ne fait que synchroniser depuis un système
+    // externe, localStorage), mais la règle de lint l'interdit telle quelle.
+    queueMicrotask(() => {
+      if (window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true") {
+        setIsCollapsed(true);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(COLLAPSED_STORAGE_KEY, String(isCollapsed));

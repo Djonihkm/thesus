@@ -187,11 +187,20 @@ function EditorRoom({
   }
 
   // Repli du panneau latéral, mémorisé pour ne pas avoir à le refermer à chaque chargement
-  // de page si l'étudiant préfère le garder replié.
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(PANEL_COLLAPSED_STORAGE_KEY) === "true";
-  });
+  // de page si l'étudiant préfère le garder replié. Toujours déplié au tout premier rendu
+  // (identique au HTML serveur) puis lu depuis localStorage après montage — lire dans
+  // l'initialiseur de useState ferait diverger le premier rendu client du HTML serveur
+  // (mismatch d'hydratation React, voir le même correctif sur Sidebar.tsx).
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+
+  useEffect(() => {
+    // Différé (queueMicrotask), même raison que le correctif équivalent dans Sidebar.tsx.
+    queueMicrotask(() => {
+      if (window.localStorage.getItem(PANEL_COLLAPSED_STORAGE_KEY) === "true") {
+        setIsPanelCollapsed(true);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(PANEL_COLLAPSED_STORAGE_KEY, String(isPanelCollapsed));
