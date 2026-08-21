@@ -2,6 +2,14 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { embedText } from "@/lib/embedding-client";
+import {
+  searchOpenAlex,
+  searchHal,
+  searchCore,
+  extractKeywords,
+  type ExternalCandidate,
+  type ExternalPlagiarismSource,
+} from "@/lib/plagiarism-external";
 
 const MAX_EMBEDDING_CHARACTERS = 60_000;
 const EMBEDDING_CHUNK_SIZE = 800;
@@ -71,20 +79,34 @@ export interface PlagiarismPassage {
   matchedExcerpt: string;
 }
 
+// INTERNAL = comparé à un autre mémoire déjà déposé sur Thesus (comportement historique) ;
+// les quatre autres viennent de plagiarism-external.ts. Optionnel côté stockage : absent
+// (pas juste "INTERNAL" par défaut) sur les rapports générés avant l'ajout des sources
+// externes — toujours lire via `match.source ?? "INTERNAL"` côté affichage.
+export type PlagiarismSource = "INTERNAL" | ExternalPlagiarismSource;
+
 export interface PlagiarismMatch {
-  memoireId: string;
+  source?: PlagiarismSource;
+  // Uniquement pour les matches INTERNAL (lien vers /memoires/[id]) — absent pour les sources
+  // externes, qui n'ont pas d'identifiant Thesus, seulement une URL (voir url ci-dessous).
+  memoireId?: string;
+  // Uniquement pour les sources externes — lien vers la ressource trouvée (OpenAlex, HAL ou
+  // CORE).
+  url?: string;
   title: string;
   score: number;
   // Optionnel : absent (pas juste vide) sur les rapports générés avant l'ajout de cette
   // granularité — le JSON stocké pour ces anciens matches n'a tout simplement pas ce champ.
   // Toujours lire via `match.passages ?? []` côté affichage, jamais supposer sa présence.
+  // Non pertinent pour les sources externes (pas de texte intégral à découper en passages,
+  // seulement un titre/résumé) — toujours absent pour elles, jamais un tableau vide.
   passages?: PlagiarismPassage[];
   // Vrai quand passages est vide spécifiquement parce que LE CANDIDAT comparé n'a pas encore
   // été retraité depuis l'ajout de cette granularité (signature encore au format "vecteur à
   // plat") — distinct d'un passages vide parce que la passe détaillée a tourné et n'a
   // légitimement rien trouvé au-dessus du seuil. Sans cette distinction, les deux cas sont
   // indiscernables à l'affichage alors que le premier est actionnable (relancer l'analyse sur
-  // le mémoire comparé) et pas le second.
+  // le mémoire comparé) et pas le second. Non pertinent pour les sources externes.
   passagesUnavailable?: boolean;
 }
 
@@ -323,6 +345,84 @@ function findSimilarPassages(
   return deduped;
 }
 
+const MAX_EXTERNAL_ACADEMIC_MATCHES = 5;
+const ACADEMIC_QUERY_KEYWORD_COUNT = 8;
+
+// --- Calibration du score des sources académiques externes ------------------------------
+//
+// Mesuré le 2026-08-20 : comparer l'embedding d'un titre+résumé (quelques centaines de
+// caractères) à l'embedding du DOCUMENT ENTIER de l'étudiant (moyenné sur ~20 chunks pour un
+// mémoire typique) ne sépare pas signal et bruit — contrairement à la comparaison
+// document-à-document interne, ici la différence de longueur/genre entre les deux textes
+// domine le signal :
+//
+//   Résultats OpenAlex topiquement liés au sujet du mémoire (freelance/confiance) :
+//     46.6%, 53.5%, 55.8% de cosinus brut
+//   Résultats OpenAlex SANS AUCUN RAPPORT (sujet sécurité/bases de données) :
+//     43.9%, 51.2%, 62.0% de cosinus brut
+//
+// Aucune séparation exploitable (les deux groupes se chevauchent). Le sémantique par
+// embedding reste utilisé pour la comparaison interne (documents de longueur/genre
+// comparables, correctement calibré, voir SEMANTIC_FLOOR) mais PAS ici — comme le permettait
+// explicitement la demande d'origine ("une comparaison plus simple si le contenu récupéré
+// est trop court"). À la place : chevauchement des mots-clés de la requête (extraits du
+// contenu de l'étudiant) dans le titre+résumé du résultat — mesuré sur le même échantillon :
+//   Résultats liés : 25%, 25%, 50% de mots-clés en commun
+//   Résultats sans rapport : 0%, 0%, 13%
+// Séparation nette. Seuil fixé à 20% (au-dessus du pire bruit mesuré à 13%, sous le plus
+// faible résultat lié mesuré à 25%).
+const ACADEMIC_OVERLAP_THRESHOLD_PERCENT = 20;
+
+// Interroge OpenAlex/HAL/CORE par mots-clés — les trois sources en parallèle via allSettled,
+// aucune ne pouvant faire échouer les autres ni l'analyse anti-plagiat dans son ensemble.
+// Toujours appelée depuis un try/catch supplémentaire côté appelant (runPlagiarismCheck) par
+// prudence.
+//
+// La requête est bâtie à partir de mots-clés extraits du contenu (extractKeywords), pas de
+// Memoire.title : en pratique ce champ est un nom de fichier (ex.
+// "Memoire_Controle_Interne_PME"), pas un vrai titre académique — vérifié empiriquement lors
+// de l'itération qui a introduit ce module, un nom de fichier ou une phrase complète en
+// requête ne renvoyaient que du bruit sans rapport, alors que des mots-clés fréquents du
+// contenu ciblent correctement le sujet réel.
+async function computeExternalMatches(extractedText: string): Promise<PlagiarismMatch[]> {
+  const keywords = extractKeywords(extractedText, ACADEMIC_QUERY_KEYWORD_COUNT);
+  if (keywords.length === 0) return [];
+  const academicQuery = keywords.join(" ");
+
+  const [openAlexResult, halResult, coreResult] = await Promise.allSettled([
+    searchOpenAlex(academicQuery),
+    searchHal(academicQuery),
+    searchCore(academicQuery),
+  ]);
+
+  const academicCandidates: ExternalCandidate[] = [
+    ...(openAlexResult.status === "fulfilled" ? openAlexResult.value : []),
+    ...(halResult.status === "fulfilled" ? halResult.value : []),
+    ...(coreResult.status === "fulfilled" ? coreResult.value : []),
+  ];
+
+  // Recherche par mots-clés (sujet), donc un résultat retourné n'est pas forcément proche en
+  // contenu. Score = proportion des mots-clés de la requête retrouvés dans le titre+résumé du
+  // résultat — pas un embedding (voir ACADEMIC_OVERLAP_THRESHOLD_PERCENT ci-dessus pour la
+  // mesure qui justifie ce choix).
+  const academicMatches: PlagiarismMatch[] = [];
+  for (const candidate of academicCandidates) {
+    const text = candidate.text.trim();
+    if (!text) continue;
+
+    const lowerText = text.toLowerCase();
+    const overlapping = keywords.filter((keyword) => lowerText.includes(keyword));
+    const score = Math.round((overlapping.length / keywords.length) * 100);
+
+    if (score >= ACADEMIC_OVERLAP_THRESHOLD_PERCENT) {
+      academicMatches.push({ source: candidate.source, title: candidate.title, url: candidate.url, score });
+    }
+  }
+  academicMatches.sort((a, b) => b.score - a.score);
+
+  return academicMatches.slice(0, MAX_EXTERNAL_ACADEMIC_MATCHES);
+}
+
 export async function runPlagiarismCheck(
   memoireId: string,
   extractedText: string,
@@ -372,6 +472,7 @@ export async function runPlagiarismCheck(
     const candidateIsLegacy = candidateEmbeddingChunks.length === 0 || !candidate.extractedText;
 
     matches.push({
+      source: "INTERNAL",
       memoireId: candidate.id,
       title: candidate.title,
       score: Math.max(semanticScore, exactCopyScore),
@@ -391,7 +492,19 @@ export async function runPlagiarismCheck(
 
   matches.sort((a, b) => b.score - a.score);
   const topMatches = matches.slice(0, MAX_MATCHES);
-  const similarityScore = topMatches.length > 0 ? topMatches[0].score : 0;
+
+  // Sources externes — jamais bloquant pour le reste de l'analyse (déjà chaque fonction en
+  // interne, mais on protège aussi l'appel groupé) ; capées séparément du corpus interne pour
+  // qu'aucun des deux axes ne fasse disparaître l'autre du rapport.
+  let externalMatches: PlagiarismMatch[] = [];
+  try {
+    externalMatches = await computeExternalMatches(extractedText);
+  } catch (error) {
+    console.error("Recherche de sources externes échouée :", error);
+  }
+
+  const allMatches = [...topMatches, ...externalMatches];
+  const similarityScore = allMatches.length > 0 ? Math.max(...allMatches.map((m) => m.score)) : 0;
 
   await prisma.memoire.update({
     where: { id: memoireId },
@@ -414,13 +527,13 @@ export async function runPlagiarismCheck(
     create: {
       memoireId,
       similarityScore,
-      matches: topMatches as unknown as Prisma.InputJsonValue,
+      matches: allMatches as unknown as Prisma.InputJsonValue,
     },
     update: {
       similarityScore,
-      matches: topMatches as unknown as Prisma.InputJsonValue,
+      matches: allMatches as unknown as Prisma.InputJsonValue,
     },
   });
 
-  return { similarityScore, matches: topMatches };
+  return { similarityScore, matches: allMatches };
 }
