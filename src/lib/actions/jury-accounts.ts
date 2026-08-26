@@ -8,6 +8,7 @@ import { isValidEmail } from "@/lib/validation";
 import { generateTemporaryPassword } from "@/lib/password-generator";
 import { sendJuryAccountCreatedEmail } from "@/lib/email";
 import { getInstitutionJuryWorkload } from "@/lib/jury-workload";
+import { canAddJury } from "@/lib/subscription";
 
 export type CreateJuryAccountActionState = {
   error?: string;
@@ -83,6 +84,11 @@ export async function createJuryAccountAction(input: {
   }
   if (existing) {
     return { error: "Un compte existe déjà avec cette adresse email." };
+  }
+
+  const juryLimit = await canAddJury(institutionUser.institutionId);
+  if (!juryLimit.allowed) {
+    return { error: juryLimit.reason };
   }
 
   const temporaryPassword = generateTemporaryPassword();

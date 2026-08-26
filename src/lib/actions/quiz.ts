@@ -5,6 +5,7 @@ import { Prisma, type QuestionType } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateQuiz } from "@/lib/quiz";
+import { getStudentPlan } from "@/lib/subscription";
 
 export type GenerateModuleActionState = {
   error?: string;
@@ -39,7 +40,8 @@ export async function generateQuizAction(memoireId: string): Promise<GenerateMod
   }
 
   try {
-    const questions = await generateQuiz(memoire.extractedText);
+    const { limits } = await getStudentPlan(session.user.id);
+    const questions = await generateQuiz(memoire.extractedText, limits.quizMaxQuestions);
 
     await prisma.quiz.create({
       data: {

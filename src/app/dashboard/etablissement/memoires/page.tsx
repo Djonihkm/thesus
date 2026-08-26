@@ -4,6 +4,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { MemoireStatusBadge } from "@/components/dashboard/MemoireStatusBadge";
 import { AssignJuryControl } from "@/components/dashboard/AssignJuryControl";
 import { suggestJurorsForCategory } from "@/lib/jury-assignment";
+import { getInstitutionPlan } from "@/lib/subscription";
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
   day: "numeric",
@@ -26,7 +27,7 @@ export default async function EtablissementMemoiresPage() {
 
   const institutionId = user.institutionId;
 
-  const [memoires, jurors] = await Promise.all([
+  const [memoires, jurors, { limits }] = await Promise.all([
     prisma.memoire.findMany({
       where: { institutionId },
       orderBy: { submittedAt: "desc" },
@@ -44,6 +45,7 @@ export default async function EtablissementMemoiresPage() {
       where: { institutionId, role: "JURY" },
       select: { id: true, name: true, specialty: true },
     }),
+    getInstitutionPlan(institutionId),
   ]);
 
   return (
@@ -63,7 +65,9 @@ export default async function EtablissementMemoiresPage() {
             const isValidated = currentAssignment?.status === "VALIDATED";
             const suggestions =
               !isValidated && memoire.theme?.status === "VALIDATED"
-                ? suggestJurorsForCategory(memoire.theme.category, jurors)
+                ? limits.autoJuryAssignment
+                  ? suggestJurorsForCategory(memoire.theme.category, jurors)
+                  : jurors.map((juror) => ({ ...juror, score: 0 }))
                 : [];
 
             return (

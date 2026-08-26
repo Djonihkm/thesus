@@ -3,10 +3,27 @@ import { requireRole } from "@/lib/auth-guard";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { ProfileForm } from "@/components/dashboard/ProfileForm";
 import { PasswordForm } from "@/components/dashboard/PasswordForm";
+import { SubscriptionSummary } from "@/components/dashboard/SubscriptionSummary";
 import { STUDY_LEVEL_LABELS, type StudyLevel } from "@/lib/validation";
+import { getStudentPlan } from "@/lib/subscription";
+import { STUDENT_PLANS, formatFcfa } from "@/lib/pricing-config";
+import { STUDENT_PLAN_FEATURES } from "@/lib/plan-features";
+
+const renewalDateFormatter = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
 
 export default async function MonComptePage() {
   const user = await requireRole("STUDENT");
+  const { planCode, planName, subscription } = await getStudentPlan(user.id);
+
+  const priceLabel = subscription
+    ? subscription.billingCycle === "YEARLY"
+      ? `${formatFcfa(STUDENT_PLANS[planCode].priceYearlyFcfa ?? 0)} / an`
+      : `${formatFcfa(STUDENT_PLANS[planCode].priceMonthlyFcfa ?? 0)} / mois`
+    : undefined;
 
   return (
     <>
@@ -68,6 +85,24 @@ export default async function MonComptePage() {
             </div>
           </section>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <SubscriptionSummary
+          planName={planName}
+          isFree={planCode === "FREE"}
+          features={STUDENT_PLAN_FEATURES[planCode]}
+          billingCycleLabel={
+            subscription ? (subscription.billingCycle === "YEARLY" ? "Annuel" : "Mensuel") : undefined
+          }
+          renewalDateLabel={
+            subscription?.currentPeriodEnd
+              ? renewalDateFormatter.format(subscription.currentPeriodEnd)
+              : undefined
+          }
+          priceLabel={priceLabel}
+          canManage={Boolean(subscription?.providerCustomerId)}
+        />
       </div>
     </>
   );

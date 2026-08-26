@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { signIn, signOut, EmailNotVerifiedError } from "@/lib/auth";
 import { createAuthToken, consumeAuthToken, getSecondsUntilResendAllowed } from "@/lib/tokens";
 import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/email";
+import { canAddStudentToInstitution } from "@/lib/subscription";
 import {
   isValidEmail,
   isValidPassword,
@@ -153,6 +154,14 @@ export async function registerAction(
     if (resolution.error) return { error: resolution.error };
     institutionId = resolution.institutionId;
     affiliatedInstitutionName = resolution.affiliatedInstitutionName;
+
+    // Uniquement quand l'établissement saisi correspond à une Institution existante — un
+    // étudiant "non rattaché" (affiliatedInstitutionName) n'est compté dans aucun quota tant
+    // qu'il n'est pas manuellement relié par le support.
+    if (institutionId) {
+      const studentLimit = await canAddStudentToInstitution(institutionId);
+      if (!studentLimit.allowed) return { error: studentLimit.reason };
+    }
   } else if (roleValue === "JURY") {
     const institutionName = String(formData.get("institutionName") ?? "").trim();
     const institutionIdInput = String(formData.get("institutionId") ?? "").trim();

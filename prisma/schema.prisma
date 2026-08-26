@@ -14,6 +14,22 @@ enum Role {
   STUDENT
 }
 
+enum PlanRole {
+  STUDENT
+  INSTITUTION
+}
+
+enum PlanBillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
 enum MemoireStatus {
   PENDING
   PROCESSING
@@ -104,9 +120,73 @@ model Institution {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users    User[]
-  memoires Memoire[]
-  themes   Theme[]
+  users        User[]
+  memoires     Memoire[]
+  themes       Theme[]
+  subscription Subscription?
+}
+
+// Catalogue des plans — synchronisé depuis src/lib/pricing-config.ts (source de vérité,
+// jamais édité à la main en base, voir syncPlansFromConfig dans src/lib/subscription.ts).
+// Un compte sans Subscription active retombe sur le plan FREE de son rôle.
+model Plan {
+  id          String   @id @default(cuid())
+  role        PlanRole
+  code        String
+  name        String
+  description String
+
+  // Limites du plan — JSON plutôt que colonnes dédiées : la forme diffère selon le rôle
+  // (StudentPlanLimits / InstitutionPlanLimits, voir pricing-config.ts) et de nouvelles
+  // limites pourront s'ajouter sans migration de schéma.
+  limits Json
+
+  // FCFA, montant entier — null si l'option n'existe pas pour ce plan (Free, ou pas
+  // d'offre annuelle pour les plans établissement). Montants provisoires, voir
+  // pricing-config.ts.
+  priceMonthlyFcfa Int?
+  priceYearlyFcfa  Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@unique([role, code])
+}
+
+// Un abonnement par compte (étudiant ou établissement, jamais les deux) — mis à jour en
+// place au renouvellement/changement de plan/annulation, pas un historique de lignes.
+model Subscription {
+  id String @id @default(cuid())
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id])
+
+  institutionId String?      @unique
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  status       SubscriptionStatus @default(ACTIVE)
+  billingCycle PlanBillingCycle?
+
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+
+  // Générique côté fournisseur de paiement — voir src/lib/payments/. "stripe" aujourd'hui
+  // (mode test uniquement, voir stripe-provider.ts), "fedapay" ou équivalent le jour de la
+  // mise en prod réelle (Stripe n'est pas disponible comme fournisseur marchand au Bénin).
+  providerName           String?
+  providerSessionId      String?
+  providerCustomerId     String?
+  providerSubscriptionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }
 
 model User {
@@ -146,6 +226,9 @@ model User {
   authTokens       AuthToken[]
   notifications    Notification[]
   documentComments DocumentComment[]
+  // Abonnement étudiant — les comptes JURY n'en ont jamais (facturation étudiant/établissement
+  // uniquement, voir Plan.role).
+  subscription     Subscription?
 
   proposedThemes  Theme[]             @relation("ThemeProposedBy")
   juryAssignments MemoireAssignment[] @relation("JuryAssignments")

@@ -4,12 +4,18 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateJurySimulation } from "@/lib/jury";
+import { getStudentPlan } from "@/lib/subscription";
 import type { GenerateModuleActionState } from "@/lib/actions/quiz";
 
 export async function generateJuryAction(memoireId: string): Promise<GenerateModuleActionState> {
   const session = await auth();
   if (!session?.user || session.user.role !== "STUDENT") {
     return { error: "Vous devez être connecté en tant qu'étudiant." };
+  }
+
+  const { limits } = await getStudentPlan(session.user.id);
+  if (!limits.jurySimulation) {
+    return { error: "La simulation de jury n'est pas incluse dans votre plan." };
   }
 
   const memoire = await prisma.memoire.findUnique({ where: { id: memoireId } });

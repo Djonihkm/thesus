@@ -12,6 +12,7 @@ import { documentImagePathname } from "@/lib/document-images";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessMemoireDocument } from "@/lib/document-access";
+import { getStudentPlan } from "@/lib/subscription";
 
 export interface ResolvedDocumentImage {
   filename: string;
@@ -131,6 +132,17 @@ export async function loadMemoireForExport(memoireId: string): Promise<MemoireEx
   }
   if (!memoire.editableContent) {
     return { error: "Ce mémoire n'a pas encore de contenu à exporter.", status: 400 };
+  }
+
+  // L'export PDF/DOCX est une fonctionnalité du plan de l'ÉTUDIANT propriétaire du mémoire,
+  // pas du plan de la personne qui consulte (un jury peut voir le document sans jamais
+  // s'abonner lui-même).
+  const { limits } = await getStudentPlan(memoire.studentId);
+  if (!limits.exportPdfDocx) {
+    return {
+      error: "L'export PDF/DOCX n'est pas inclus dans le plan de l'étudiant.",
+      status: 403,
+    };
   }
 
   return { memoire };

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyInstitution } from "@/lib/notifications";
 import { processMemoire } from "@/lib/memoire-processing";
 import { buildDraftSkeleton } from "@/lib/memoire-draft";
+import { canCreateMemoire } from "@/lib/subscription";
 import {
   MAX_FILE_SIZE_BYTES,
   fileTypeFromMimeType,
@@ -58,6 +59,11 @@ export async function createMemoireAction(input: {
   const fileType = fileTypeFromMimeType(input.mimeType);
   if (!fileType) {
     return { error: "Type de fichier non pris en charge." };
+  }
+
+  const memoireLimit = await canCreateMemoire(user.id);
+  if (!memoireLimit.allowed) {
+    return { error: memoireLimit.reason };
   }
 
   // Le dépôt n'est plus conditionné à un thème validé (audit/quiz/anti-plagiat/simulation
@@ -123,6 +129,11 @@ export async function createDraftMemoireAction(input: {
       error:
         "Votre établissement n'est pas encore rattaché à la plateforme. Contactez le support pour débloquer la création de mémoire.",
     };
+  }
+
+  const memoireLimit = await canCreateMemoire(user.id);
+  if (!memoireLimit.allowed) {
+    return { error: memoireLimit.reason };
   }
 
   const shouldLinkTheme = input.linkToActiveTheme ?? true;

@@ -19,7 +19,7 @@ export default async function Home() {
         <ProcessSection />
         <ModulesSection />
         <RolesSection />
-        <PricingSection />
+        <PricingSection isAuthenticated={Boolean(session?.user)} />
         {session?.user ? <></> : <FinalCta />}
       </main>
       <Footer />

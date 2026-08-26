@@ -63,6 +63,7 @@ const INSTITUTION_NAV: NavItem[] = [
   { label: "Thèmes", href: "/dashboard/etablissement/themes", icon: Lightbulb },
   { label: "Mémoires", href: "/dashboard/etablissement/memoires", icon: FileText },
   { label: "Jurys", href: "/dashboard/etablissement/jurys", icon: Users },
+  { label: "Mon compte", href: "/dashboard/etablissement/mon-compte", icon: UserCircle },
 ];
 
 export function getNavForRole(role: Role): NavItem[] {

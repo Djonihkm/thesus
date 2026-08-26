@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { PlagiarismPassages } from "@/components/dashboard/PlagiarismPassages";
 import { RecomputePlagiarismButton } from "@/components/dashboard/RecomputePlagiarismButton";
+import { getStudentPlan } from "@/lib/subscription";
 import type { PlagiarismMatch, PlagiarismSource } from "@/lib/plagiarism";
 
 const SOURCE_LABELS: Record<PlagiarismSource, string> = {
@@ -40,6 +41,7 @@ export default async function PlagiarismReportPage({
   const report = memoire.plagiarismReport;
   const matches = (report.matches as unknown as PlagiarismMatch[]) ?? [];
   const isClean = report.similarityScore < 15;
+  const { limits } = await getStudentPlan(user.id);
 
   return (
     <>
@@ -118,7 +120,13 @@ export default async function PlagiarismReportPage({
                     <span className="shrink-0 text-sm font-medium text-ink">{match.score}%</span>
                   </div>
 
-                  {!isInternal ? null : match.passages && match.passages.length > 0 ? (
+                  {!isInternal ? null : !limits.plagiarismPassageDetail ? (
+                    <p className="mt-3 border-t border-border-dark/10 pt-3 text-xs text-ink-muted">
+                      Le détail des passages similaires n&apos;est pas inclus dans votre plan.
+                      Passez à un plan supérieur pour voir précisément quels extraits
+                      correspondent.
+                    </p>
+                  ) : match.passages && match.passages.length > 0 ? (
                     <PlagiarismPassages passages={match.passages} />
                   ) : match.passages === undefined ? (
                     <p className="mt-3 border-t border-border-dark/10 pt-3 text-xs text-ink-muted">

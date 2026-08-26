@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateChatReply, type ChatTurn } from "@/lib/ai-chat";
+import { getStudentPlan } from "@/lib/subscription";
 
 const MAX_HISTORY_MESSAGES = 20;
 
@@ -35,6 +36,11 @@ export async function sendAiChatMessageAction(
   const trimmed = content.trim();
   if (!trimmed) {
     return { error: "Écrivez un message avant d'envoyer." };
+  }
+
+  const { limits } = await getStudentPlan(session.user.id);
+  if (!limits.aiWritingAssistant) {
+    return { error: "L'assistant IA de rédaction n'est pas inclus dans votre plan." };
   }
 
   const memoire = await prisma.memoire.findUnique({
