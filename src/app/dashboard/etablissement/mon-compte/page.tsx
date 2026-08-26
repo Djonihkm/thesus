@@ -28,10 +28,10 @@ export default async function EtablissementMonComptePage() {
 
   const { planCode, planName, subscription } = await getInstitutionPlan(user.institutionId);
 
-  // L'établissement n'a que la facturation mensuelle (voir pricing-config.ts) — pas de
-  // billingCycleLabel à afficher ici, à la différence de l'étudiant.
   const priceLabel = subscription
-    ? `${formatFcfa(INSTITUTION_PLANS[planCode].priceMonthlyFcfa ?? 0)} / mois`
+    ? subscription.billingCycle === "YEARLY"
+      ? `${formatFcfa(INSTITUTION_PLANS[planCode].priceYearlyFcfa ?? 0)} / an`
+      : `${formatFcfa(INSTITUTION_PLANS[planCode].priceMonthlyFcfa ?? 0)} / mois`
     : undefined;
 
   return (
@@ -80,6 +80,9 @@ export default async function EtablissementMonComptePage() {
           planName={planName}
           isFree={planCode === "FREE"}
           features={INSTITUTION_PLAN_FEATURES[planCode]}
+          billingCycleLabel={
+            subscription ? (subscription.billingCycle === "YEARLY" ? "Annuel" : "Mensuel") : undefined
+          }
           renewalDateLabel={
             subscription?.currentPeriodEnd
               ? renewalDateFormatter.format(subscription.currentPeriodEnd)

@@ -35,7 +35,8 @@ interface PlanDefinitionBase {
   name: string;
   description: string;
   // FCFA, montant entier (le FCFA n'a pas de sous-unité usuelle) — null si l'option n'existe
-  // pas pour ce plan (Free, ou pas d'offre annuelle pour les plans établissement).
+  // pas pour ce plan (cas du plan Free uniquement, les deux cycles sont sinon toujours
+  // proposés ensemble pour rester cohérent entre étudiant et établissement).
   priceMonthlyFcfa: number | null;
   priceYearlyFcfa: number | null;
 }
@@ -115,13 +116,16 @@ export const INSTITUTION_PLANS: Record<InstitutionPlanCode, InstitutionPlanDefin
     priceYearlyFcfa: null,
     limits: { maxStudents: 15, maxJurys: 3, autoJuryAssignment: false },
   },
+  // Réduction annuelle établissement : "10 mois payés pour 12" (~17% de remise), une
+  // pratique B2B SaaS courante et plus sobre que la remise étudiant (~37%, pensée pour
+  // pousser un engagement individuel) — un budget institutionnel s'engage différemment.
   STANDARD: {
     role: "INSTITUTION",
     code: "STANDARD",
     name: "Standard",
     description: "Pour une promotion complète, jurys illimités.",
     priceMonthlyFcfa: 15_000, // provisoire
-    priceYearlyFcfa: null,
+    priceYearlyFcfa: 150_000, // provisoire — 10 mois payés sur 12
     limits: { maxStudents: 150, maxJurys: null, autoJuryAssignment: true },
   },
   ETABLISSEMENT: {
@@ -130,7 +134,7 @@ export const INSTITUTION_PLANS: Record<InstitutionPlanCode, InstitutionPlanDefin
     name: "Établissement",
     description: "Étudiants illimités, pour tout un établissement.",
     priceMonthlyFcfa: 40_000, // provisoire
-    priceYearlyFcfa: null,
+    priceYearlyFcfa: 400_000, // provisoire — 10 mois payés sur 12
     limits: { maxStudents: null, maxJurys: null, autoJuryAssignment: true },
   },
 };

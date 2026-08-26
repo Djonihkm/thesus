@@ -19,11 +19,12 @@ type Audience = "STUDENT" | "INSTITUTION";
 const STUDENT_ORDER: StudentPlanCode[] = ["FREE", "ESSENTIEL", "COMPLET"];
 const INSTITUTION_ORDER: InstitutionPlanCode[] = ["FREE", "STANDARD", "ETABLISSEMENT"];
 
-const YEARLY_DISCOUNT_PERCENT = Math.round(
-  (1 -
-    STUDENT_PLANS.ESSENTIEL.priceYearlyFcfa! / (STUDENT_PLANS.ESSENTIEL.priceMonthlyFcfa! * 12)) *
-    100,
-);
+// La remise annuelle diffère entre étudiant (~37%) et établissement (~17%, "10 mois sur 12"
+// — voir pricing-config.ts) : calculée depuis le plan payant "d'entrée" de chaque audience
+// plutôt qu'une constante unique, pour rester exacte des deux côtés du toggle.
+function yearlyDiscountPercent(monthlyFcfa: number, yearlyFcfa: number): number {
+  return Math.round((1 - yearlyFcfa / (monthlyFcfa * 12)) * 100);
+}
 
 function SubscribeButton({
   planCode,
@@ -76,6 +77,11 @@ export default function PricingSection({ isAuthenticated }: { isAuthenticated: b
       : INSTITUTION_ORDER.map((code) => INSTITUTION_PLANS[code]);
   const features = audience === "STUDENT" ? STUDENT_PLAN_FEATURES : INSTITUTION_PLAN_FEATURES;
   const popularCode = audience === "STUDENT" ? "ESSENTIEL" : "STANDARD";
+  const referencePlan = audience === "STUDENT" ? STUDENT_PLANS.ESSENTIEL : INSTITUTION_PLANS.STANDARD;
+  const discountPercent = yearlyDiscountPercent(
+    referencePlan.priceMonthlyFcfa!,
+    referencePlan.priceYearlyFcfa!,
+  );
 
   return (
     <section id="tarifs" className="bg-surface-light py-24">
@@ -102,10 +108,7 @@ export default function PricingSection({ isAuthenticated }: { isAuthenticated: b
               <button
                 key={option}
                 type="button"
-                onClick={() => {
-                  setAudience(option);
-                  if (option === "INSTITUTION") setBillingCycle("MONTHLY");
-                }}
+                onClick={() => setAudience(option)}
                 className={`rounded-full px-5 py-2 text-sm font-medium transition ${
                   audience === option
                     ? "bg-ink text-paper shadow-sm"
@@ -117,49 +120,41 @@ export default function PricingSection({ isAuthenticated }: { isAuthenticated: b
             ))}
           </div>
 
-          {audience === "STUDENT" ? (
-            <div className="inline-flex items-center gap-2 rounded-full border border-border-neutral bg-surface-neutral p-1">
-              {(["MONTHLY", "YEARLY"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setBillingCycle(option)}
-                  className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition ${
-                    billingCycle === option
-                      ? "bg-ink text-paper shadow-sm"
-                      : "text-ink-muted hover:text-ink"
-                  }`}
-                >
-                  {option === "MONTHLY" ? "Mensuel" : "Annuel"}
-                  {option === "YEARLY" ? (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${
-                        billingCycle === "YEARLY"
-                          ? "bg-accent-lime text-ink"
-                          : "bg-accent-lime/70 text-ink"
-                      }`}
-                    >
-                      -{YEARLY_DISCOUNT_PERCENT}%
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <div className="inline-flex items-center gap-2 rounded-full border border-border-neutral bg-surface-neutral p-1">
+            {(["MONTHLY", "YEARLY"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setBillingCycle(option)}
+                className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition ${
+                  billingCycle === option
+                    ? "bg-ink text-paper shadow-sm"
+                    : "text-ink-muted hover:text-ink"
+                }`}
+              >
+                {option === "MONTHLY" ? "Mensuel" : "Annuel"}
+                {option === "YEARLY" ? (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${
+                      billingCycle === "YEARLY"
+                        ? "bg-accent-lime text-ink"
+                        : "bg-accent-lime/70 text-ink"
+                    }`}
+                  >
+                    -{discountPercent}%
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-16 grid gap-8 md:grid-cols-3">
           {plans.map((plan) => {
             const popular = plan.code === popularCode;
             const isFree = plan.code === "FREE";
-            const price =
-              audience === "STUDENT"
-                ? billingCycle === "YEARLY"
-                  ? plan.priceYearlyFcfa
-                  : plan.priceMonthlyFcfa
-                : plan.priceMonthlyFcfa;
-            const priceSuffix =
-              audience === "STUDENT" ? (billingCycle === "YEARLY" ? "/an" : "/mois") : "/mois";
+            const price = billingCycle === "YEARLY" ? plan.priceYearlyFcfa : plan.priceMonthlyFcfa;
+            const priceSuffix = billingCycle === "YEARLY" ? "/an" : "/mois";
 
             return (
               <div
