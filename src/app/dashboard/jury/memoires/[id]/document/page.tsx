@@ -1,10 +1,13 @@
 // src/app/dashboard/jury/memoires/[id]/document/page.tsx
+import { after } from "next/server";
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
+import { documentRoomId } from "@/lib/y-sweet";
+import { logDocumentIntegrityDrift } from "@/lib/document-integrity";
 
 export default async function JuryDocumentPage({
   params,
@@ -26,6 +29,17 @@ export default async function JuryDocumentPage({
   if (memoire.status !== "COMPLETED") {
     redirect("/dashboard/jury/memoires");
   }
+
+  // Filet détectif — voir document-integrity.ts. Après la réponse, jamais bloquant pour
+  // l'affichage.
+  after(() =>
+    logDocumentIntegrityDrift(
+      memoire.id,
+      documentRoomId(memoire.id, memoire.documentRoomVersion),
+      memoire.editableContent,
+      "jury_page_load",
+    ),
+  );
 
   return (
     <>

@@ -157,7 +157,7 @@ export function RegisterForm({
           {role === "STUDENT" ? (
             <>
               <FormField label="Pays" name="country" type="text" autoComplete="country-name" required />
-              <InstitutionCombobox label="Établissement" institutions={institutions} />
+              <InstitutionCombobox label="Établissement (facultatif)" institutions={institutions} />
               <FieldOfStudyCombobox label="Filière" options={FIELDS_OF_STUDY} />
               <div className="flex flex-col gap-2">
                 <span className="text-sm text-ink-muted">Niveau d&apos;étude</span>

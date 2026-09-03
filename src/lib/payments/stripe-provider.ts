@@ -20,8 +20,35 @@ import type {
   PaymentConfirmation,
   PortalSessionInput,
   PortalSessionResult,
+  WebhookEvent,
   BillingCycle,
 } from "./provider";
+import { logError } from "@/lib/log-error";
+
+// Statuts Stripe considérés comme "toujours actif" — inclut past_due/incomplete (paiement en
+// cours de relance côté Stripe, on ne coupe pas l'accès pendant sa fenêtre de dunning) et
+// paused (abonnement suspendu volontairement, pas résilié).
+const STRIPE_ACTIVE_STATUSES: ReadonlySet<Stripe.Subscription.Status> = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "incomplete",
+  "paused",
+]);
+
+// Distingue une fin "subie" (relances de paiement épuisées) d'une résiliation volontaire
+// (mappée sur "canceled" plus bas) — les deux sont des états terminaux Stripe mais
+// SubscriptionStatus.EXPIRED/CANCELED existent précisément pour cette nuance.
+const STRIPE_EXPIRED_STATUSES: ReadonlySet<Stripe.Subscription.Status> = new Set([
+  "unpaid",
+  "incomplete_expired",
+]);
+
+function mapStripeStatus(status: Stripe.Subscription.Status): "ACTIVE" | "CANCELED" | "EXPIRED" {
+  if (STRIPE_ACTIVE_STATUSES.has(status)) return "ACTIVE";
+  if (STRIPE_EXPIRED_STATUSES.has(status)) return "EXPIRED";
+  return "CANCELED";
+}
 
 function getStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -78,10 +105,15 @@ export const stripeProvider: PaymentProvider = {
     return { redirectUrl: session.url, providerSessionId: session.id };
   },
 
-  async parseWebhookConfirmation(
-    rawBody: string,
-    signatureHeader: string | null,
-  ): Promise<PaymentConfirmation | null> {
+  // checkout.session.completed -> activation initiale (le seul événement géré jusqu'ici).
+  // customer.subscription.updated -> resynchronise currentPeriodEnd + status à chaque
+  // changement côté Stripe (renouvellement réussi, échec de paiement, reprise) — sans lui,
+  // currentPeriodEnd n'était jamais rafraîchi après le tout premier paiement, et un abonné
+  // normalement facturé se faisait rétrograder en Free silencieusement dès la fin de sa
+  // première période (voir isSubscriptionCurrentlyActive dans subscription.ts).
+  // customer.subscription.deleted -> annulation définitive (portail self-service ou échec
+  // de paiement épuisant les relances).
+  async parseWebhookEvent(rawBody: string, signatureHeader: string | null): Promise<WebhookEvent | null> {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!webhookSecret || !signatureHeader) return null;
 
@@ -90,37 +122,63 @@ export const stripeProvider: PaymentProvider = {
     try {
       event = await stripe.webhooks.constructEventAsync(rawBody, signatureHeader, webhookSecret);
     } catch (error) {
-      console.error("Signature webhook Stripe invalide :", error);
+      logError("stripe-provider:parseWebhookEvent:invalidSignature", error);
       return null;
     }
 
-    if (event.type !== "checkout.session.completed") return null;
-    const session = event.data.object as Stripe.Checkout.Session;
-    const metadata = session.metadata ?? {};
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+      const metadata = session.metadata ?? {};
 
-    const ownerType = metadata.ownerType;
-    const ownerId = metadata.ownerId;
-    const planId = metadata.planId;
-    const billingCycle = metadata.billingCycle;
-    if (
-      (ownerType !== "USER" && ownerType !== "INSTITUTION") ||
-      !ownerId ||
-      !planId ||
-      (billingCycle !== "MONTHLY" && billingCycle !== "YEARLY")
-    ) {
-      console.error("Métadonnées de session Stripe incomplètes ou invalides :", metadata);
-      return null;
+      const ownerType = metadata.ownerType;
+      const ownerId = metadata.ownerId;
+      const planId = metadata.planId;
+      const billingCycle = metadata.billingCycle;
+      if (
+        (ownerType !== "USER" && ownerType !== "INSTITUTION") ||
+        !ownerId ||
+        !planId ||
+        (billingCycle !== "MONTHLY" && billingCycle !== "YEARLY")
+      ) {
+        logError(
+          "stripe-provider:parseWebhookEvent:invalidMetadata",
+          new Error("Métadonnées de session Stripe incomplètes ou invalides"),
+          { metadata },
+        );
+        return null;
+      }
+
+      const confirmation: PaymentConfirmation = {
+        providerSessionId: session.id,
+        providerCustomerId: typeof session.customer === "string" ? session.customer : null,
+        providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null,
+        ownerType,
+        ownerId,
+        planId,
+        billingCycle: billingCycle as BillingCycle,
+      };
+      return { kind: "activated", confirmation };
     }
 
-    return {
-      providerSessionId: session.id,
-      providerCustomerId: typeof session.customer === "string" ? session.customer : null,
-      providerSubscriptionId: typeof session.subscription === "string" ? session.subscription : null,
-      ownerType,
-      ownerId,
-      planId,
-      billingCycle: billingCycle as BillingCycle,
-    };
+    if (event.type === "customer.subscription.updated") {
+      const subscription = event.data.object;
+      const currentPeriodEndSeconds = subscription.items.data[0]?.current_period_end;
+      if (!currentPeriodEndSeconds) return null;
+
+      return {
+        kind: "period_synced",
+        providerSubscriptionId: subscription.id,
+        currentPeriodEnd: new Date(currentPeriodEndSeconds * 1000),
+        status: mapStripeStatus(subscription.status),
+      };
+    }
+
+    if (event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object;
+      return { kind: "canceled", providerSubscriptionId: subscription.id };
+    }
+
+    return null;
   },
 
   async cancelSubscription(providerSubscriptionId: string): Promise<void> {

@@ -49,7 +49,6 @@ export function InstitutionCombobox({ label, institutions }: InstitutionCombobox
           name="institutionName"
           value={institutionName}
           onChange={(event) => setInstitutionName(event.target.value)}
-          required
           className="rounded-lg border border-ink/15 bg-surface-light px-4 py-2.5 text-ink outline-none transition-colors placeholder:text-ink-muted/60 focus:border-accent"
         />
         <button
@@ -82,7 +81,6 @@ export function InstitutionCombobox({ label, institutions }: InstitutionCombobox
         }}
         placeholder="Rechercher votre établissement…"
         autoComplete="off"
-        required
         className="rounded-lg border border-ink/15 bg-surface-light px-4 py-2.5 text-ink outline-none transition-colors placeholder:text-ink-muted/60 focus:border-accent"
       />
       <input type="hidden" name="institutionId" value={institutionId} />

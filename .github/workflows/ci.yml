@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Aucune régression de typage/lint/tests/build ne devait pouvoir atteindre main sans
+    # détection automatique jusqu'ici (voir AUDIT.md) — ce pipeline ne se substitue pas à une
+    # vraie base de données de test (aucune infra dédiée aujourd'hui) : les variables
+    # ci-dessous sont des valeurs factices, suffisantes pour que Prisma/NextAuth s'initialisent
+    # sans erreur au build, jamais des identifiants réels.
+    env:
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+      AUTH_SECRET: "ci-placeholder-secret-not-a-real-secret"
+      APP_URL: "http://localhost:3000"
+      GMAIL_USER: "ci@example.com"
+      GMAIL_APP_PASSWORD: "ci-placeholder"
+      BLOB_READ_WRITE_TOKEN: "ci-placeholder"
+      GEMINI_API_KEY: "ci-placeholder"
+      Y_SWEET_CONNECTION_STRING: "ys://127.0.0.1:8080"
+      ADOBE_PDF_SERVICES_CLIENT_ID: "ci-placeholder"
+      ADOBE_PDF_SERVICES_CLIENT_SECRET: "ci-placeholder"
+      STRIPE_SECRET_KEY: "sk_test_ci_placeholder"
+      STRIPE_WEBHOOK_SECRET: "whsec_ci_placeholder"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build

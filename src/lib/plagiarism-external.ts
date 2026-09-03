@@ -12,6 +12,8 @@
 // gratuit à l'index complet) et BASE remplacé par CORE (délai d'obtention de clé BASE trop
 // long, jamais activée) — voir l'historique git pour l'implémentation retirée si besoin.
 
+import { logError } from "@/lib/log-error";
+
 export type ExternalPlagiarismSource = "OPENALEX" | "HAL" | "CORE";
 
 export interface ExternalCandidate {
@@ -109,7 +111,7 @@ export async function searchOpenAlex(query: string): Promise<ExternalCandidate[]
         text: [work.title, reconstructAbstract(work.abstract_inverted_index)].filter(Boolean).join(". "),
       }));
   } catch (error) {
-    console.error("Recherche OpenAlex échouée :", error);
+    logError("plagiarism-external:searchOpenAlex", error);
     return [];
   }
 }
@@ -143,7 +145,7 @@ export async function searchHal(query: string): Promise<ExternalCandidate[]> {
         text: [doc.title_s[0], doc.abstract_s?.[0]].filter(Boolean).join(". "),
       }));
   } catch (error) {
-    console.error("Recherche HAL échouée :", error);
+    logError("plagiarism-external:searchHal", error);
     return [];
   }
 }
@@ -165,6 +167,13 @@ interface CoreWork {
 }
 
 let hasWarnedMissingCoreKey = false;
+
+// Exposé pour que l'UI du rapport anti-plagiat (plagiat/page.tsx) puisse indiquer que cette
+// source n'a pas été interrogée, plutôt que de laisser croire à une couverture complète — le
+// seul signal jusqu'ici était un console.warn serveur, jamais visible côté étudiant/établissement.
+export function isCoreSearchAvailable(): boolean {
+  return Boolean(process.env.CORE_API_KEY);
+}
 
 export async function searchCore(query: string): Promise<ExternalCandidate[]> {
   const apiKey = process.env.CORE_API_KEY;
@@ -199,7 +208,7 @@ export async function searchCore(query: string): Promise<ExternalCandidate[]> {
         text: [work.title, work.abstract].filter(Boolean).join(". "),
       }));
   } catch (error) {
-    console.error("Recherche CORE échouée :", error);
+    logError("plagiarism-external:searchCore", error);
     return [];
   }
 }

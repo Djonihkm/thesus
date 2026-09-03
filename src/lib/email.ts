@@ -74,6 +74,27 @@ export async function sendJuryAccountCreatedEmail(
   });
 }
 
+// Distinct de sendJuryAccountCreatedEmail (dont le libellé "votre compte a été créé" ne
+// convient pas à une réinitialisation) — déclenché par resetJuryPasswordAction quand un jury
+// n'a jamais reçu ses identifiants initiaux ou les a perdus, seul recours jusqu'ici étant de
+// supprimer puis recréer le compte (lui-même bloqué si le jury a des assignations actives).
+export async function sendJuryPasswordResetEmail(to: string, name: string, temporaryPassword: string) {
+  const url = `${getAppUrl()}/connexion`;
+
+  await transporter.sendMail({
+    from: FROM,
+    to,
+    subject: "Votre mot de passe Thesus a été réinitialisé",
+    html: emailShell(
+      "Nouveau mot de passe temporaire",
+      `<p>Bonjour ${name},</p><p>Votre établissement a réinitialisé le mot de passe de votre compte jury sur Thesus. Voici votre nouveau mot de passe temporaire :</p><p style="margin: 16px 0; padding: 12px 16px; background-color: #F5F5F3; border-radius: 8px;"><strong>Email :</strong> ${to}<br /><strong>Mot de passe temporaire :</strong> ${temporaryPassword}</p><p>Pour votre sécurité, il vous sera demandé de choisir un nouveau mot de passe dès votre prochaine connexion.</p>`,
+      "Se connecter",
+      url,
+    ),
+    text: `Bonjour ${name}, votre établissement a réinitialisé le mot de passe de votre compte jury Thesus. Email : ${to} — Mot de passe temporaire : ${temporaryPassword}. Connectez-vous sur ${url} ; un changement de mot de passe vous sera demandé dès la prochaine connexion.`,
+  });
+}
+
 export async function sendPasswordResetEmail(to: string, name: string, token: string) {
   const url = `${getAppUrl()}/reinitialiser-mot-de-passe?token=${token}`;
 

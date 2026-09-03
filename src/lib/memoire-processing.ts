@@ -7,6 +7,7 @@ import { generateAuditReport } from "@/lib/audit";
 import { runPlagiarismCheck } from "@/lib/plagiarism";
 import { convertPdfToDocx, PdfConversionError } from "@/lib/pdf-conversion";
 import { createDocumentImageConverter } from "@/lib/document-images";
+import { matchesDeclaredFileType } from "@/lib/memoire-upload";
 
 export async function fetchBlobBuffer(fileUrl: string): Promise<Buffer> {
   const result = await get(fileUrl, { access: "private" });
@@ -37,6 +38,11 @@ export async function processMemoire(memoireId: string): Promise<void> {
   let docxBuffer: Buffer;
   try {
     const buffer = await fetchBlobBuffer(memoire.fileUrl);
+    if (!matchesDeclaredFileType(buffer, memoire.fileType)) {
+      throw new Error(
+        "Le contenu du fichier ne correspond pas au type déclaré (PDF/DOCX) — dépôt rejeté.",
+      );
+    }
     docxBuffer = await toDocxBuffer(buffer, memoire.fileType);
   } catch (error) {
     await prisma.memoire.update({
@@ -84,10 +90,30 @@ export async function processMemoire(memoireId: string): Promise<void> {
     .then((result) => result.value)
     .catch(() => null);
 
-  await prisma.memoire.update({
-    where: { id: memoireId },
-    data: { status: "PROCESSING", extractedText, editableContent },
-  });
+  try {
+    await prisma.memoire.update({
+      where: { id: memoireId },
+      data: { status: "PROCESSING", extractedText, editableContent },
+    });
+  } catch (error) {
+    // Sans ce garde-fou, un échec transitoire de cette écriture laissait le mémoire bloqué
+    // en PENDING/PROCESSING pour toujours : le seul recours pour l'étudiant était de
+    // supprimer et redéposer, sans jamais savoir pourquoi.
+    await prisma.memoire
+      .update({
+        where: { id: memoireId },
+        data: {
+          status: "FAILED",
+          errorMessage:
+            error instanceof Error ? error.message : "Échec de l'enregistrement du texte extrait.",
+        },
+      })
+      .catch(() => {
+        // Si même cette écriture de repli échoue, il n'y a plus rien à faire ici — la base
+        // est indisponible, pas seulement cette requête.
+      });
+    return;
+  }
 
   try {
     const auditResult = await generateAuditReport(extractedText);

@@ -20,6 +20,17 @@ function normalizeAnswer(value: string): string {
     .toLowerCase();
 }
 
+// Pas de choices (TEXTE_TROU) : rien à recaler, la comparaison à la soumission est déjà
+// normalisée. Avec choices (QCU/VRAI_FAUX) : si correctAnswer ne correspond exactement à
+// aucune valeur de choices mais qu'une correspondance normalisée existe, on stocke la
+// valeur de choices elle-même (garantit une égalité stricte possible côté affichage et
+// filet de sécurité si la comparaison à la soumission redevenait stricte un jour).
+function reconcileCorrectAnswer(correctAnswer: string, choices: string[] | null): string {
+  if (!choices || choices.includes(correctAnswer)) return correctAnswer;
+  const match = choices.find((choice) => normalizeAnswer(choice) === normalizeAnswer(correctAnswer));
+  return match ?? correctAnswer;
+}
+
 export async function generateQuizAction(memoireId: string): Promise<GenerateModuleActionState> {
   const session = await auth();
   if (!session?.user || session.user.role !== "STUDENT") {
@@ -53,7 +64,14 @@ export async function generateQuizAction(memoireId: string): Promise<GenerateMod
             choices: question.choices
               ? (question.choices as unknown as Prisma.InputJsonValue)
               : Prisma.JsonNull,
-            correctAnswer: question.correctAnswer,
+            // Le modèle est instruit de renvoyer correctAnswer identique à une valeur de
+            // choices, mais rien ne le garantit structurellement (pas de contrainte de
+            // schéma possible ici) — un espace ou une casse différente rendrait la question
+            // impossible à réussir même en cochant la bonne case. On aligne donc
+            // correctAnswer sur la valeur de choices la plus proche (comparaison
+            // insensible à la casse/aux accents) quand elle existe, plutôt que de stocker
+            // tel quel ce que le modèle a renvoyé.
+            correctAnswer: reconcileCorrectAnswer(question.correctAnswer, question.choices),
             order: question.order,
           })),
         },
@@ -108,10 +126,12 @@ export async function submitQuizAttemptAction(
 
   const results: QuizQuestionResult[] = quiz.questions.map((question) => {
     const given = answers[question.id] ?? "";
-    const isCorrect =
-      question.type === "TEXTE_TROU"
-        ? normalizeAnswer(given) === normalizeAnswer(question.correctAnswer)
-        : given === question.correctAnswer;
+    // Comparaison normalisée pour tous les types — pas seulement TEXTE_TROU. Pour QCU/
+    // VRAI_FAUX, given provient d'une sélection contrôlée parmi choices (jamais de saisie
+    // libre côté client) : une comparaison stricte n'apportait aucune garantie
+    // supplémentaire, seulement un risque si correctAnswer différait de choices par un
+    // espace ou une casse — voir reconcileCorrectAnswer à la génération.
+    const isCorrect = normalizeAnswer(given) === normalizeAnswer(question.correctAnswer);
 
     return {
       questionId: question.id,

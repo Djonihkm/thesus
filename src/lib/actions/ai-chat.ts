@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateChatReply, type ChatTurn } from "@/lib/ai-chat";
 import { getStudentPlan } from "@/lib/subscription";
+import { logError } from "@/lib/log-error";
 
 const MAX_HISTORY_MESSAGES = 20;
 
@@ -94,7 +95,7 @@ export async function sendAiChatMessageAction(
       },
     };
   } catch (error) {
-    console.error("Échec de la génération de la réponse de l'assistant IA :", error);
+    logError("actions/ai-chat:sendAiChatMessageAction", error, { memoireId });
     return {
       error: "L'assistant n'a pas pu répondre pour le moment. Réessayez dans un instant.",
       userMessage: userMessageView,

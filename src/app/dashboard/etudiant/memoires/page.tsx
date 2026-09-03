@@ -5,6 +5,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { MemoiresListSection } from "@/components/dashboard/MemoiresListSection";
 import { MemoireUploadForm } from "@/components/dashboard/MemoireUploadForm";
 import { ThemeStatusBanner } from "@/components/dashboard/ThemeStatusBanner";
+import { InstitutionStatusBanner } from "@/components/dashboard/InstitutionStatusBanner";
 import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 import { getStudentThemeContext } from "@/lib/student-theme";
 
@@ -32,9 +33,6 @@ export default async function MemoiresPage() {
     (memoire) => memoire.status === "PENDING" || memoire.status === "PROCESSING",
   );
   const hasAnyMemoire = memoires.length > 0;
-  // Le dépôt n'est plus conditionné à un thème (voir createMemoireAction) — seule
-  // l'existence d'un rattachement à l'établissement reste requise.
-  const canDeposit = Boolean(user.institutionId);
 
   return (
     <>
@@ -43,29 +41,19 @@ export default async function MemoiresPage() {
       <DashboardHeader
         eyebrow="Espace étudiant"
         title="Mes mémoires"
-        description={
-          canDeposit
-            ? "Déposez un mémoire ou consultez le statut de ceux déjà envoyés."
-            : "Votre établissement n'est pas encore rattaché à la plateforme."
-        }
+        description="Déposez un mémoire ou consultez le statut de ceux déjà envoyés."
       />
 
-      <div className="mt-10">
-        {canDeposit ? (
-          <div className="flex flex-col gap-6">
-            <ThemeStatusBanner
-              currentTheme={themeContext.currentTheme}
-              pendingSelection={themeContext.pendingSelection}
-              pendingClosure={themeContext.pendingClosure}
-            />
-            <MemoireUploadForm activeThemeTitle={themeContext.currentTheme?.title ?? null} />
-          </div>
-        ) : (
-          <p className="text-sm text-ink-muted">
-            Contactez le support pour rattacher votre compte à un établissement et débloquer le
-            dépôt de mémoire.
-          </p>
-        )}
+      <div className="mt-10 flex flex-col gap-6">
+        {user.affiliatedInstitutionName ? (
+          <InstitutionStatusBanner affiliatedInstitutionName={user.affiliatedInstitutionName} />
+        ) : null}
+        <ThemeStatusBanner
+          currentTheme={themeContext.currentTheme}
+          pendingSelection={themeContext.pendingSelection}
+          pendingClosure={themeContext.pendingClosure}
+        />
+        <MemoireUploadForm activeThemeTitle={themeContext.currentTheme?.title ?? null} />
       </div>
 
       {hasAnyMemoire ? (

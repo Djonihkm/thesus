@@ -8,6 +8,8 @@ import { signIn, signOut, EmailNotVerifiedError } from "@/lib/auth";
 import { createAuthToken, consumeAuthToken, getSecondsUntilResendAllowed } from "@/lib/tokens";
 import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/email";
 import { canAddStudentToInstitution } from "@/lib/subscription";
+import { checkLoginRateLimit, recordFailedLoginAttempt, clearLoginAttempts } from "@/lib/rate-limit";
+import { logError } from "@/lib/log-error";
 import {
   isValidEmail,
   isValidPassword,
@@ -145,22 +147,25 @@ export async function registerAction(
     studentNumber = String(formData.get("studentNumber") ?? "").trim() || undefined;
 
     if (!country) return { error: "Indiquez votre pays." };
-    if (!institutionName) return { error: "Indiquez votre établissement." };
     if (!fieldOfStudy) return { error: "Indiquez votre filière." };
     if (!isStudyLevel(studyLevelValue)) return { error: "Choisissez votre niveau d'étude." };
     studyLevel = studyLevelValue;
 
-    const resolution = await resolveInstitutionSelection(institutionIdInput, institutionName);
-    if (resolution.error) return { error: resolution.error };
-    institutionId = resolution.institutionId;
-    affiliatedInstitutionName = resolution.affiliatedInstitutionName;
+    // Établissement facultatif : un étudiant peut rédiger son mémoire sans établissement
+    // rattaché (voir InstitutionStatusBanner) — rien à résoudre si le champ est resté vide,
+    // sinon institutionId et affiliatedInstitutionName resteraient tous deux undefined comme
+    // souhaité (par opposition à un nom saisi mais non reconnu, qui peuple
+    // affiliatedInstitutionName pour un rattachement manuel ultérieur par le support).
+    if (institutionName) {
+      const resolution = await resolveInstitutionSelection(institutionIdInput, institutionName);
+      if (resolution.error) return { error: resolution.error };
+      institutionId = resolution.institutionId;
+      affiliatedInstitutionName = resolution.affiliatedInstitutionName;
 
-    // Uniquement quand l'établissement saisi correspond à une Institution existante — un
-    // étudiant "non rattaché" (affiliatedInstitutionName) n'est compté dans aucun quota tant
-    // qu'il n'est pas manuellement relié par le support.
-    if (institutionId) {
-      const studentLimit = await canAddStudentToInstitution(institutionId);
-      if (!studentLimit.allowed) return { error: studentLimit.reason };
+      if (institutionId) {
+        const studentLimit = await canAddStudentToInstitution(institutionId);
+        if (!studentLimit.allowed) return { error: studentLimit.reason };
+      }
     }
   } else if (roleValue === "JURY") {
     const institutionName = String(formData.get("institutionName") ?? "").trim();
@@ -222,7 +227,7 @@ export async function registerAction(
   try {
     await sendVerificationEmail(user.email, user.name, token);
   } catch (error) {
-    console.error("Échec de l'envoi de l'email de vérification :", error);
+    logError("actions/auth:registerAction:sendVerificationEmail", error, { userId: user.id });
     return {
       error:
         "Votre compte a été créé, mais l'email de confirmation n'a pas pu être envoyé. Contactez-nous pour activer votre compte.",
@@ -262,7 +267,7 @@ export async function resendVerificationEmailAction(email: string): Promise<Auth
   try {
     await sendVerificationEmail(user.email, user.name, token);
   } catch (error) {
-    console.error("Échec du renvoi de l'email de vérification :", error);
+    logError("actions/auth:resendVerificationEmailAction", error, { userId: user.id });
   }
 
   return genericSuccess;
@@ -281,20 +286,33 @@ export async function loginAction(
     return { error: "Adresse email ou mot de passe incorrect." };
   }
 
+  const rateLimit = await checkLoginRateLimit(email);
+  if (!rateLimit.allowed) {
+    return {
+      error: `Trop de tentatives de connexion pour cette adresse. Réessayez dans ${rateLimit.retryAfterMinutes} minutes.`,
+    };
+  }
+
   try {
     await signIn("credentials", { email, password, redirect: false });
   } catch (error) {
     if (error instanceof EmailNotVerifiedError) {
+      // Identifiants corrects (sinon NextAuth aurait levé une CredentialsSignin AuthError
+      // avant même d'atteindre cette vérification) — ne compte pas comme une tentative
+      // échouée, l'attaquant n'a rien appris sur le mot de passe ici.
       return {
         error:
           "Confirmez votre adresse email avant de vous connecter. Vérifiez votre boîte de réception.",
       };
     }
     if (error instanceof AuthError) {
+      await recordFailedLoginAttempt(email);
       return { error: "Adresse email ou mot de passe incorrect." };
     }
     throw error;
   }
+
+  await clearLoginAttempts(email);
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
@@ -329,7 +347,7 @@ async function sendPasswordResetIfDue(email: string): Promise<AuthFormState> {
   try {
     await sendPasswordResetEmail(user.email, user.name, token);
   } catch (error) {
-    console.error("Échec de l'envoi de l'email de réinitialisation :", error);
+    logError("actions/auth:forgotPasswordAction", error, { userId: user.id });
   }
 
   return genericSuccess;

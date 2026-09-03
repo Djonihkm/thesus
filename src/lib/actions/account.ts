@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isStudyLevel, isValidPassword, PASSWORD_MIN_LENGTH } from "@/lib/validation";
+import { isStudyLevel, isValidPassword, isValidUrl, PASSWORD_MIN_LENGTH } from "@/lib/validation";
 
 export type AccountFormState = {
   error?: string;
@@ -82,6 +82,54 @@ export async function updateJuryProfileAction(
   });
 
   revalidatePath("/dashboard/jury/mon-compte");
+  return { success: true };
+}
+
+// Établissement : nom du responsable (User.name) + informations de l'Institution
+// (nom/pays/ville/site web). Contrairement à STUDENT/JURY, deux modèles à mettre à jour ici —
+// transaction pour ne jamais laisser l'un modifié sans l'autre en cas d'échec partiel. Le
+// slug de l'Institution (identifiant technique) n'est volontairement pas exposé : un
+// changement de nom d'affichage ne doit pas casser les références existantes qui s'appuient
+// dessus.
+export async function updateInstitutionProfileAction(
+  _prevState: AccountFormState,
+  formData: FormData,
+): Promise<AccountFormState> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "INSTITUTION") {
+    return { error: "Vous devez être connecté en tant qu'établissement." };
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const institutionName = String(formData.get("institutionName") ?? "").trim();
+  const country = String(formData.get("country") ?? "").trim() || null;
+  const city = String(formData.get("city") ?? "").trim() || null;
+  const website = String(formData.get("website") ?? "").trim() || null;
+
+  if (!name) {
+    return { error: "Indiquez le nom du responsable." };
+  }
+  if (!institutionName) {
+    return { error: "Indiquez le nom de l'établissement." };
+  }
+  if (website && !isValidUrl(website)) {
+    return { error: "L'adresse du site web ne semble pas valide." };
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user?.institutionId) {
+    return { error: "Établissement introuvable." };
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { name } }),
+    prisma.institution.update({
+      where: { id: user.institutionId },
+      data: { name: institutionName, country, city, website },
+    }),
+  ]);
+
+  revalidatePath("/dashboard/etablissement/mon-compte");
   return { success: true };
 }
 

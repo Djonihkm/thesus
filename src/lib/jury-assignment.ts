@@ -51,17 +51,30 @@ function similarity(category: string, specialty: string): number {
   return shared > 0 ? (0.5 * shared) / Math.max(categoryWords.size, specialtyWords.size) : 0;
 }
 
-// Classe les jurys candidats par pertinence décroissante pour un thème donné. Les jurys
-// sans spécialité renseignée sont inclus en fin de liste (score 0) plutôt qu'exclus —
+// Pénalité par mémoire déjà assigné à un jury — appliquée au score de spécialité (0-1) avant
+// tri. Choisie pour départager les jurys à spécialité équivalente par charge de travail (cas
+// le plus fréquent en pratique : plusieurs jurys couvrant la même catégorie) sans jamais
+// laisser la charge l'emporter sur une correspondance de spécialité nettement meilleure —
+// voir workloadByJury ci-dessous, auparavant complètement ignoré de cette fonction alors que
+// getInstitutionJuryWorkload existe déjà pour l'affichage de la fiche jury.
+const WORKLOAD_PENALTY_PER_MEMOIRE = 0.12;
+
+// Classe les jurys candidats par pertinence décroissante pour un thème donné, en tenant
+// compte à la fois de la correspondance de spécialité et de la charge de travail actuelle
+// (nombre de mémoires déjà assignés — voir getInstitutionJuryWorkload). Les jurys sans
+// spécialité renseignée sont inclus en fin de liste (score 0) plutôt qu'exclus —
 // l'établissement doit pouvoir assigner manuellement même sans correspondance.
 export function suggestJurorsForCategory(
   category: string,
   jurors: JurorCandidate[],
+  workloadByJury?: Map<string, unknown[]>,
 ): JurorSuggestion[] {
   return jurors
-    .map((juror) => ({
-      ...juror,
-      score: juror.specialty ? similarity(category, juror.specialty) : 0,
-    }))
+    .map((juror) => {
+      const specialtyScore = juror.specialty ? similarity(category, juror.specialty) : 0;
+      const workload = workloadByJury?.get(juror.id)?.length ?? 0;
+      const score = Math.max(0, specialtyScore - workload * WORKLOAD_PENALTY_PER_MEMOIRE);
+      return { ...juror, score };
+    })
     .sort((a, b) => b.score - a.score);
 }

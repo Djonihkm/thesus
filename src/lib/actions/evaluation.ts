@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, notifyInstitution } from "@/lib/notifications";
 import { EVALUATION_CRITERIA_LABELS, type EvaluationCriterion } from "@/lib/evaluation-criteria";
 
 export type EvaluationFormState = {
@@ -55,6 +55,8 @@ export async function submitEvaluationAction(
     where: { memoireId, juryId: session.user.id },
   });
 
+  const isRevision = Boolean(existing);
+
   if (existing) {
     await prisma.defenseEvaluation.update({
       where: { id: existing.id },
@@ -78,11 +80,33 @@ export async function submitEvaluationAction(
   revalidatePath("/dashboard/jury/grilles");
   revalidatePath("/dashboard/etudiant/evaluation");
 
-  await createNotification(
-    memoire.studentId,
-    "Votre soutenance a été évaluée.",
-    `/dashboard/etudiant/memoires/${memoireId}`,
-  );
+  // Le formulaire "Revoir / modifier" (voir ReviewEvaluationModal.tsx) permet à un jury de
+  // réviser une évaluation déjà soumise — délibéré, pas une lacune. Ce qui manquait :
+  // updatedAt sur DefenseEvaluation (traçabilité, ajouté au schéma) et un message distinct
+  // ici pour qu'une révision ne soit pas silencieusement confondue avec l'évaluation
+  // initiale, côté étudiant ET côté établissement.
+  if (isRevision) {
+    await Promise.all([
+      createNotification(
+        memoire.studentId,
+        "Votre note de soutenance a été révisée par le jury.",
+        `/dashboard/etudiant/memoires/${memoireId}`,
+      ),
+      notifyInstitution(
+        // Non-null garanti par la garde ligne 37 (jury.institutionId === memoire.institutionId,
+        // et jury.institutionId déjà vérifié truthy) — TS ne propage pas cette égalité ici.
+        memoire.institutionId!,
+        `${jury.name} a révisé son évaluation de soutenance pour « ${memoire.title} ».`,
+        "/dashboard/etablissement/memoires",
+      ),
+    ]);
+  } else {
+    await createNotification(
+      memoire.studentId,
+      "Votre soutenance a été évaluée.",
+      `/dashboard/etudiant/memoires/${memoireId}`,
+    );
+  }
 
   return { success: true };
 }

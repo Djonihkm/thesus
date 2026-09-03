@@ -58,6 +58,7 @@ import { ResizableImage } from "@/lib/tiptap/resizable-image";
 import { YSweetCollaboration } from "@/lib/tiptap/y-sweet-collaboration";
 import { DocumentCommentMark } from "@/lib/tiptap/document-comment-mark";
 import { encodeCommentAnchor, decodeCommentAnchor } from "@/lib/tiptap/comment-anchor";
+import { findTextRangeInDoc } from "@/lib/tiptap/find-text-range";
 import { documentRoomId } from "@/lib/y-sweet";
 import {
   saveDocumentContentAction,
@@ -114,6 +115,15 @@ interface DocumentEditorProps {
   // Chat IA : uniquement pertinent en mode "edit" (étudiant sur son propre mémoire) — pas de
   // chat côté jury dans cette itération, voir la note sur showChat plus bas.
   initialChatMessages?: ChatMessageView[];
+  // Calculé côté serveur (voir isDocumentContextTruncated dans lib/ai-chat.ts, pas
+  // importable ici — ce fichier est "use client") à partir du même editableContent que
+  // initialContent : signale que l'assistant IA ne voit qu'un extrait (début + fin) du
+  // document, pas son intégralité, pour l'afficher dans le panneau de chat.
+  documentContextTruncated?: boolean;
+  // Extrait à repérer et marquer (plagiarismFlag) au chargement — voir find-text-range.ts.
+  // Vient du bouton "Marquer dans le document" du rapport anti-plagiat (plagiat/page.tsx),
+  // jamais appliqué automatiquement à l'ouverture normale du document.
+  flagExcerptOnLoad?: string;
 }
 
 export function DocumentEditor({
@@ -124,6 +134,8 @@ export function DocumentEditor({
   initialContent,
   canRegenerate = false,
   initialChatMessages = [],
+  documentContextTruncated = false,
+  flagExcerptOnLoad,
 }: DocumentEditorProps) {
   const docId = documentRoomId(memoireId, documentRoomVersion);
 
@@ -136,6 +148,8 @@ export function DocumentEditor({
         initialContent={initialContent}
         canRegenerate={canRegenerate}
         initialChatMessages={initialChatMessages}
+        documentContextTruncated={documentContextTruncated}
+        flagExcerptOnLoad={flagExcerptOnLoad}
       />
     </YDocProvider>
   );
@@ -152,6 +166,8 @@ function EditorRoom({
   initialContent,
   canRegenerate,
   initialChatMessages,
+  documentContextTruncated,
+  flagExcerptOnLoad,
 }: {
   memoireId: string;
   userName: string;
@@ -159,6 +175,8 @@ function EditorRoom({
   initialContent: string;
   canRegenerate: boolean;
   initialChatMessages: ChatMessageView[];
+  documentContextTruncated: boolean;
+  flagExcerptOnLoad?: string;
 }) {
   const ydoc = useYDoc();
   const awareness = useAwareness();
@@ -170,9 +188,18 @@ function EditorRoom({
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<"pdf" | "docx" | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // true dès qu'une frappe survient, false seulement après une sauvegarde réussie — distinct
+  // de saveStatus, qui ne reflète que le dernier appel déclenché, pas "il reste une frappe en
+  // attente du debounce". Sert au garde-fou de fermeture d'onglet ci-dessous.
+  const hasUnsavedChangesRef = useRef(false);
 
   const [comments, setComments] = useState<DocumentCommentView[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  // Alimenté par goToComment ci-dessous quand le passage ancré a été supprimé du document —
+  // sans ça, "Voir dans le texte" échouait silencieusement (aucun scroll, aucune indication),
+  // laissant un commentaire orphelin indéfiniment sans que personne ne sache pourquoi le
+  // retrouver ne marchait plus.
+  const [unresolvedCommentIds, setUnresolvedCommentIds] = useState<Set<string>>(new Set());
 
   // Le chat IA est réservé à l'étudiant sur son propre document (mode "edit" — annotate est
   // le jury, read n'a pas d'édition possible) : pas d'équivalent côté jury dans cette
@@ -252,6 +279,31 @@ function EditorRoom({
     }
   }, [editor, mode, connectionStatus, fragment, initialContent]);
 
+  // Marque le passage signalé par le rapport anti-plagiat (voir find-text-range.ts) une fois
+  // le document chargé — recherche par contenu, peut échouer si le texte a changé depuis
+  // l'analyse ; l'échec est alors signalé explicitement (flagResult "not-found"), jamais
+  // silencieux.
+  const hasAppliedFlagRef = useRef(false);
+  const [flagResult, setFlagResult] = useState<"found" | "not-found" | null>(null);
+  useEffect(() => {
+    if (!editor || !flagExcerptOnLoad || hasAppliedFlagRef.current) return;
+    if (connectionStatus !== "connected") return;
+
+    hasAppliedFlagRef.current = true;
+    queueMicrotask(() => {
+      const range = findTextRangeInDoc(editor.state.doc, flagExcerptOnLoad);
+      if (!range) {
+        setFlagResult("not-found");
+        return;
+      }
+      editor.chain().setTextSelection(range).setMark("plagiarismFlag").run();
+      const domInfo = editor.view.domAtPos(range.from);
+      const element = domInfo.node instanceof HTMLElement ? domInfo.node : domInfo.node.parentElement;
+      element?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFlagResult("found");
+    });
+  }, [editor, connectionStatus, flagExcerptOnLoad]);
+
   // Présence : nom réel depuis la session NextAuth (passé en prop depuis la page serveur),
   // plus besoin d'un resolveUsers séparé comme avec Liveblocks.
   const setPresence = usePresenceSetter<{ name: string }>();
@@ -275,6 +327,7 @@ function EditorRoom({
     setSaveStatus("saving");
     const result = await saveDocumentContentAction(memoireId, editor.getHTML());
     setSaveStatus(result.error ? "error" : "saved");
+    if (!result.error) hasUnsavedChangesRef.current = false;
   }, [editor, memoireId]);
 
   // Sauvegarde automatique façon Google Docs : un court silence après la dernière frappe
@@ -284,6 +337,7 @@ function EditorRoom({
     if (!editor || mode !== "edit") return;
 
     function scheduleSave() {
+      hasUnsavedChangesRef.current = true;
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(() => {
         void performSave();
@@ -294,6 +348,40 @@ function EditorRoom({
     return () => {
       editor.off("update", scheduleSave);
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [editor, mode, performSave]);
+
+  // Filet pour la frappe qui tombe dans la fenêtre du debounce (jusqu'à 1500ms) au moment où
+  // l'étudiant ferme l'onglet ou navigue ailleurs : on tente un enregistrement immédiat dès
+  // que la page devient masquée (déclenché de façon fiable sur mobile, contrairement à
+  // beforeunload) et on avertit via le dialogue natif du navigateur s'il reste une
+  // sauvegarde en attente au moment de quitter — pas une garantie absolue (un flush
+  // asynchrone pendant beforeunload peut être interrompu), mais réduit nettement la fenêtre
+  // de perte silencieuse par rapport à l'absence totale de filet.
+  useEffect(() => {
+    if (!editor || mode !== "edit") return;
+
+    function flushPendingSave() {
+      if (!hasUnsavedChangesRef.current) return;
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      void performSave();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") flushPendingSave();
+    }
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!hasUnsavedChangesRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [editor, mode, performSave]);
 
@@ -413,7 +501,16 @@ function EditorRoom({
       anchorFrom: comment.anchorFrom,
       anchorTo: comment.anchorTo,
     });
-    if (!range) return;
+    if (!range) {
+      setUnresolvedCommentIds((current) => new Set(current).add(comment.id));
+      return;
+    }
+    setUnresolvedCommentIds((current) => {
+      if (!current.has(comment.id)) return current;
+      const next = new Set(current);
+      next.delete(comment.id);
+      return next;
+    });
     const domInfo = editor.view.domAtPos(range.from);
     const element = domInfo.node instanceof HTMLElement ? domInfo.node : domInfo.node.parentElement;
     element?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -421,6 +518,28 @@ function EditorRoom({
 
   return (
     <div className="flex flex-col gap-4">
+      {flagResult ? (
+        <div
+          className={`flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-sm ${
+            flagResult === "found" ? "bg-flag-soft text-flag" : "bg-surface-neutral text-ink-muted"
+          }`}
+        >
+          <span>
+            {flagResult === "found"
+              ? "Le passage signalé a été repéré et marqué dans le document."
+              : "Le passage signalé n'a pas été retrouvé tel quel dans le document — il a peut-être été modifié depuis l'analyse anti-plagiat."}
+          </span>
+          <button
+            type="button"
+            onClick={() => setFlagResult(null)}
+            aria-label="Fermer"
+            className="shrink-0 opacity-70 transition hover:opacity-100"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <PresenceAvatars others={others} />
@@ -509,6 +628,7 @@ function EditorRoom({
       <EditorSidePanel
         editor={editor}
         comments={comments}
+        unresolvedCommentIds={unresolvedCommentIds}
         currentUserName={userName}
         showChat={showChat}
         activeTab={activeTab}
@@ -519,6 +639,7 @@ function EditorRoom({
         onCollapsedChange={setIsPanelCollapsed}
         memoireId={memoireId}
         initialChatMessages={initialChatMessages}
+        documentContextTruncated={documentContextTruncated}
         onNavigateToComment={goToComment}
         onReply={handleReply}
         onResolve={handleResolve}
@@ -988,6 +1109,7 @@ function ReplyComposer({ onSubmit }: { onSubmit: (content: string) => void }) {
 
 function CommentsList({
   comments,
+  unresolvedCommentIds,
   currentUserName,
   onNavigate,
   onReply,
@@ -995,6 +1117,7 @@ function CommentsList({
   onDelete,
 }: {
   comments: DocumentCommentView[];
+  unresolvedCommentIds: Set<string>;
   currentUserName: string;
   onNavigate: (comment: DocumentCommentView) => void;
   onReply: (parentId: string, content: string) => void;
@@ -1006,7 +1129,9 @@ function CommentsList({
       {comments.length === 0 ? (
         <p className="px-1 py-2 text-sm text-ink-muted">Aucun commentaire sur ce document.</p>
       ) : (
-        comments.map((comment) => (
+        comments.map((comment) => {
+          const isUnresolved = unresolvedCommentIds.has(comment.id);
+          return (
           <div
             key={comment.id}
             className="shrink-0 overflow-hidden rounded-xl border border-border-neutral bg-surface-light"
@@ -1015,7 +1140,7 @@ function CommentsList({
               <button
                 type="button"
                 onClick={() => onNavigate(comment)}
-                disabled={!comment.anchorFrom}
+                disabled={!comment.anchorFrom || isUnresolved}
                 className="flex items-center gap-1.5 text-xs font-medium text-ink-muted transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ArrowRight size={12} />
@@ -1031,6 +1156,12 @@ function CommentsList({
                 <CheckCircle2 size={14} />
               </button>
             </div>
+            {isUnresolved ? (
+              <p className="border-b border-border-neutral bg-flag-soft px-3 py-1.5 text-[11px] text-flag">
+                Le passage annoté a été supprimé du document — ce commentaire n&apos;est plus
+                rattaché à un emplacement. Vous pouvez le supprimer ci-dessous.
+              </p>
+            ) : null}
             <div className="px-3">
               <CommentBubble
                 comment={comment}
@@ -1051,7 +1182,8 @@ function CommentsList({
               </div>
             </div>
           </div>
-        ))
+          );
+        })
       )}
     </div>
   );
@@ -1068,10 +1200,12 @@ function AiChatBody({
   memoireId,
   editor,
   initialMessages,
+  contextTruncated,
 }: {
   memoireId: string;
   editor: Editor | null;
   initialMessages: ChatMessageView[];
+  contextTruncated: boolean;
 }) {
   const [messages, setMessages] = useState<ChatMessageView[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -1124,6 +1258,16 @@ function AiChatBody({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {contextTruncated ? (
+        <div className="flex shrink-0 items-start gap-2 border-b border-border-neutral bg-surface-neutral px-3 py-2.5 text-xs text-ink-muted">
+          <CircleAlert size={14} className="mt-0.5 shrink-0" />
+          <span>
+            Votre document est long : l&apos;assistant travaille sur le début et la fin
+            seulement, pas sur son intégralité. Ses réponses sur le milieu du texte peuvent
+            être moins précises.
+          </span>
+        </div>
+      ) : null}
       <div ref={listRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
         {messages.length === 0 ? (
           <p className="px-1 py-2 text-sm text-ink-muted">
@@ -1203,6 +1347,7 @@ function AiChatBody({
 function EditorSidePanel({
   editor,
   comments,
+  unresolvedCommentIds,
   currentUserName,
   showChat,
   activeTab,
@@ -1213,6 +1358,7 @@ function EditorSidePanel({
   onCollapsedChange,
   memoireId,
   initialChatMessages,
+  documentContextTruncated,
   onNavigateToComment,
   onReply,
   onResolve,
@@ -1220,6 +1366,7 @@ function EditorSidePanel({
 }: {
   editor: Editor | null;
   comments: DocumentCommentView[];
+  unresolvedCommentIds: Set<string>;
   currentUserName: string;
   showChat: boolean;
   activeTab: PanelTab;
@@ -1230,6 +1377,7 @@ function EditorSidePanel({
   onCollapsedChange: (collapsed: boolean) => void;
   memoireId: string;
   initialChatMessages: ChatMessageView[];
+  documentContextTruncated: boolean;
   onNavigateToComment: (comment: DocumentCommentView) => void;
   onReply: (parentId: string, content: string) => void;
   onResolve: (commentId: string) => void;
@@ -1314,10 +1462,16 @@ function EditorSidePanel({
 
   const body =
     resolvedTab === "chat" ? (
-      <AiChatBody memoireId={memoireId} editor={editor} initialMessages={initialChatMessages} />
+      <AiChatBody
+        memoireId={memoireId}
+        editor={editor}
+        initialMessages={initialChatMessages}
+        contextTruncated={documentContextTruncated}
+      />
     ) : (
       <CommentsList
         comments={comments}
+        unresolvedCommentIds={unresolvedCommentIds}
         currentUserName={currentUserName}
         onNavigate={navigateAndClose}
         onReply={onReply}

@@ -261,6 +261,19 @@ model AuthToken {
   @@index([userId, type])
 }
 
+// Anti-bruteforce sur la connexion (voir src/lib/rate-limit.ts) — pas de table dédiée
+// jusqu'ici, donc aucune protection contre les tentatives répétées de mot de passe.
+// identifier = email normalisé (pas de FK vers User : un identifiant qui ne correspond à
+// aucun compte doit être rate-limité tout autant, sans quoi tenter des emails au hasard
+// resterait un moyen de contourner la limite).
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  identifier String
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, createdAt])
+}
+
 model Notification {
   id        String    @id @default(cuid())
   userId    String
@@ -308,11 +321,17 @@ model Memoire {
   documentRoomVersion Int @default(1)
 
   studentId     String
-  student       User        @relation("MemoireStudent", fields: [studentId], references: [id])
-  institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id])
-  submittedAt   DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  student       User         @relation("MemoireStudent", fields: [studentId], references: [id])
+  // Nullable : un étudiant dont l'établissement n'est pas encore rattaché à la plateforme
+  // (institutionId absent sur son User, voir affiliatedInstitutionName) peut tout de même
+  // déposer/rédiger son mémoire librement (voir createMemoireAction) — seules les
+  // fonctionnalités qui nécessitent structurellement un établissement (assignation/évaluation
+  // jury officielle, catalogue de thèmes) restent hors de portée, par construction : elles
+  // filtrent toutes par institutionId non-null.
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  submittedAt   DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   // Thème choisi (dans la liste validée de l'établissement) ou proposé par l'étudiant —
   // nullable : un mémoire peut exister avant qu'un thème soit choisi/validé.
@@ -551,4 +570,8 @@ model DefenseEvaluation {
   criteria  Json
   comments  String?
   createdAt DateTime @default(now())
+  // Absente jusqu'ici alors que la note reste modifiable après soumission (voir "Revoir /
+  // modifier" dans ReviewEvaluationModal.tsx) : sans ce champ, aucune trace de quand une
+  // évaluation a été révisée après coup.
+  updatedAt DateTime @updatedAt
 }

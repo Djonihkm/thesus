@@ -49,12 +49,6 @@ export async function createMemoireAction(input: {
   if (!user) {
     return { error: "Compte introuvable." };
   }
-  if (!user.institutionId) {
-    return {
-      error:
-        "Votre établissement n'est pas encore rattaché à la plateforme. Contactez le support pour débloquer le dépôt de mémoire.",
-    };
-  }
 
   const fileType = fileTypeFromMimeType(input.mimeType);
   if (!fileType) {
@@ -73,7 +67,10 @@ export async function createMemoireAction(input: {
   // reste sans thème et pourra être rattaché après coup (voir
   // attachCurrentThemeToMemoireAction). currentTheme n'est renseigné que via une demande de
   // sélection approuvée, donc toujours VALIDATED quand présent — pas besoin de re-vérifier
-  // son statut ici.
+  // son statut ici. De la même façon, l'absence d'établissement (institutionId null, voir
+  // affiliatedInstitutionName) n'empêche plus le dépôt : le mémoire est alors créé sans
+  // établissement, et ne pourra jamais être vu côté établissement/jury tant qu'aucun
+  // établissement n'est rattaché au compte (voir Memoire.institutionId dans le schéma).
   const shouldLinkTheme = input.linkToActiveTheme ?? true;
   const memoire = await prisma.memoire.create({
     data: {
@@ -88,11 +85,13 @@ export async function createMemoireAction(input: {
 
   after(() => processMemoire(memoire.id));
 
-  await notifyInstitution(
-    user.institutionId,
-    "Un étudiant a déposé un nouveau mémoire.",
-    "/dashboard/etablissement/memoires",
-  );
+  if (user.institutionId) {
+    await notifyInstitution(
+      user.institutionId,
+      "Un étudiant a déposé un nouveau mémoire.",
+      "/dashboard/etablissement/memoires",
+    );
+  }
 
   return { success: true, memoireId: memoire.id };
 }
@@ -123,12 +122,6 @@ export async function createDraftMemoireAction(input: {
   });
   if (!user) {
     return { error: "Compte introuvable." };
-  }
-  if (!user.institutionId) {
-    return {
-      error:
-        "Votre établissement n'est pas encore rattaché à la plateforme. Contactez le support pour débloquer la création de mémoire.",
-    };
   }
 
   const memoireLimit = await canCreateMemoire(user.id);

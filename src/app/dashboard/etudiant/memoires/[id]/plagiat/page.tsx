@@ -8,6 +8,7 @@ import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { PlagiarismPassages } from "@/components/dashboard/PlagiarismPassages";
 import { RecomputePlagiarismButton } from "@/components/dashboard/RecomputePlagiarismButton";
 import { getStudentPlan } from "@/lib/subscription";
+import { isCoreSearchAvailable } from "@/lib/plagiarism-external";
 import type { PlagiarismMatch, PlagiarismSource } from "@/lib/plagiarism";
 
 const SOURCE_LABELS: Record<PlagiarismSource, string> = {
@@ -78,6 +79,13 @@ export default async function PlagiarismReportPage({
         </div>
       </div>
 
+      {!isCoreSearchAvailable() ? (
+        <p className="mt-3 text-xs text-ink-muted">
+          Source CORE non interrogée (non configurée côté plateforme) — la couverture externe
+          se limite à OpenAlex et HAL pour ce rapport.
+        </p>
+      ) : null}
+
       <div className="mt-10">
         <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
           Mémoires similaires
@@ -127,7 +135,7 @@ export default async function PlagiarismReportPage({
                       correspondent.
                     </p>
                   ) : match.passages && match.passages.length > 0 ? (
-                    <PlagiarismPassages passages={match.passages} />
+                    <PlagiarismPassages passages={match.passages} memoireId={memoire.id} />
                   ) : match.passages === undefined ? (
                     <p className="mt-3 border-t border-border-dark/10 pt-3 text-xs text-ink-muted">
                       Détail des passages non disponible — ce rapport a été généré avant

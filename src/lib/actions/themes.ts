@@ -257,6 +257,15 @@ export async function validateThemeAction(themeId: string): Promise<ThemeActionS
   if ("error" in result) return { error: result.error };
   const { theme } = result;
 
+  // Défense en profondeur : le bouton n'est proposé côté UI que pour un thème PROPOSED, mais
+  // rien n'empêchait jusqu'ici d'appeler l'action directement sur un thème déjà VALIDATED
+  // (institution-créé, jamais passé par ici) ou déjà REJECTED — sans ce garde, rejeter un
+  // thème déjà pris (takenByUserId) laisserait currentTheme de l'étudiant pointer vers un
+  // thème "Rejeté" sans jamais être libéré.
+  if (theme.status !== "PROPOSED") {
+    return { error: "Ce thème a déjà été traité." };
+  }
+
   await prisma.theme.update({ where: { id: themeId }, data: { status: "VALIDATED" } });
   revalidateThemePaths();
   if (theme.proposedByUserId) {
@@ -273,6 +282,11 @@ export async function rejectThemeAction(themeId: string): Promise<ThemeActionSta
   const result = await requireInstitutionTheme(themeId);
   if ("error" in result) return { error: result.error };
   const { theme } = result;
+
+  // Voir le commentaire équivalent dans validateThemeAction.
+  if (theme.status !== "PROPOSED") {
+    return { error: "Ce thème a déjà été traité." };
+  }
 
   await prisma.theme.update({ where: { id: themeId }, data: { status: "REJECTED" } });
   revalidateThemePaths();

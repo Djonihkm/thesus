@@ -3,7 +3,41 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessMemoireDocument } from "@/lib/document-access";
+import { createNotification } from "@/lib/notifications";
 import type { User, Memoire } from "@prisma/client";
+
+// Contrairement aux thèmes/évaluations/assignations, un commentaire ou une réponse ne
+// déclenchait jusqu'ici aucune notification — jury et étudiant devaient rouvrir l'éditeur
+// pour le découvrir. "L'autre partie" : le jury n'est pas notifié via "tout jury de
+// l'institution" (canAccessMemoireDocument est volontairement large, voir document-access.ts)
+// mais seulement le jury actuellement assigné à CE mémoire, pour ne pas notifier des comptes
+// sans lien réel avec lui.
+async function notifyOtherPartyOfDocumentActivity(
+  memoire: Memoire,
+  actorId: string,
+  message: string,
+): Promise<void> {
+  if (memoire.studentId === actorId) {
+    const assignment = await prisma.memoireAssignment.findFirst({
+      where: { memoireId: memoire.id, status: "VALIDATED" },
+      orderBy: { assignedAt: "desc" },
+      select: { juryId: true },
+    });
+    if (assignment) {
+      await createNotification(
+        assignment.juryId,
+        message,
+        `/dashboard/jury/memoires/${memoire.id}/document`,
+      );
+    }
+  } else {
+    await createNotification(
+      memoire.studentId,
+      message,
+      `/dashboard/etudiant/memoires/${memoire.id}/document`,
+    );
+  }
+}
 
 export interface DocumentCommentReplyView {
   id: string;
@@ -108,6 +142,12 @@ export async function createDocumentCommentAction(
     include: { author: { select: { name: true } } },
   });
 
+  await notifyOtherPartyOfDocumentActivity(
+    access.memoire,
+    access.user.id,
+    "Nouveau commentaire sur le document.",
+  );
+
   return {
     comment: {
       id: comment.id,
@@ -145,6 +185,12 @@ export async function replyToDocumentCommentAction(
     data: { memoireId, authorId: access.user.id, content: trimmed, parentId },
     include: { author: { select: { name: true } } },
   });
+
+  await notifyOtherPartyOfDocumentActivity(
+    access.memoire,
+    access.user.id,
+    "Nouvelle réponse à un commentaire sur le document.",
+  );
 
   return {
     reply: {

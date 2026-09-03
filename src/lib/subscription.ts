@@ -16,7 +16,7 @@ import {
   type InstitutionPlanLimits,
   type BillingCycle,
 } from "@/lib/pricing-config";
-import type { PaymentConfirmation } from "@/lib/payments/provider";
+import { getPaymentProvider, type PaymentConfirmation } from "@/lib/payments";
 
 // Synchronise le catalogue Plan en base depuis pricing-config.ts (source de vérité) — upsert
 // idempotent. À appeler après tout changement de pricing-config.ts (voir le script ponctuel
@@ -175,7 +175,10 @@ export async function activateSubscriptionFromPayment(confirmation: PaymentConfi
     billingCycle: confirmation.billingCycle,
     currentPeriodStart: now,
     currentPeriodEnd,
-    providerName: "stripe",
+    // Lu depuis le provider actif plutôt qu'écrit en dur — sans ça, un futur passage à
+    // FedaPay (voir src/lib/payments/index.ts) continuerait silencieusement à étiqueter
+    // les nouveaux abonnements "stripe" en base.
+    providerName: getPaymentProvider().name,
     providerSessionId: confirmation.providerSessionId,
     providerCustomerId: confirmation.providerCustomerId,
     providerSubscriptionId: confirmation.providerSubscriptionId,
@@ -194,4 +197,31 @@ export async function activateSubscriptionFromPayment(confirmation: PaymentConfi
       update: data,
     });
   }
+}
+
+// Appelée sur customer.subscription.updated (voir stripe-provider.ts) — resynchronise la
+// date de fin de période réelle et le statut sur la Subscription déjà activée par
+// activateSubscriptionFromPayment. updateMany plutôt que update : pas de contrainte unique
+// sur providerSubscriptionId, et un événement qui ne correspond à aucune Subscription connue
+// (ex. test webhook Stripe avec un id fictif) doit rester un no-op silencieux, pas une erreur.
+export async function syncSubscriptionPeriod(
+  providerSubscriptionId: string,
+  currentPeriodEnd: Date,
+  status: "ACTIVE" | "CANCELED" | "EXPIRED",
+): Promise<void> {
+  await prisma.subscription.updateMany({
+    where: { providerSubscriptionId },
+    data: { currentPeriodEnd, status },
+  });
+}
+
+// Appelée sur customer.subscription.deleted (annulation définitive, portail self-service ou
+// échec de paiement épuisant les relances côté Stripe) — jusqu'ici, aucun code ne mettait
+// jamais SubscriptionStatus.CANCELED en base : le statut restait éternellement "ACTIVE" quoi
+// qu'il arrive côté fournisseur.
+export async function cancelSubscriptionRecord(providerSubscriptionId: string): Promise<void> {
+  await prisma.subscription.updateMany({
+    where: { providerSubscriptionId },
+    data: { status: "CANCELED" },
+  });
 }

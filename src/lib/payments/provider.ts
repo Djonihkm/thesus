@@ -55,18 +55,36 @@ export interface PortalSessionResult {
   redirectUrl: string;
 }
 
+// Événements de cycle de vie d'un abonnement qu'on choisit de traiter — pas un miroir de tous
+// les événements bruts du fournisseur. "activated" (paiement initial confirmé) existait déjà
+// (ex-PaymentConfirmation) ; "period_synced" et "canceled" comblent un manque réel : sans eux,
+// seul l'instant de la création était jamais reflété en base, jamais un renouvellement ni une
+// annulation déclenchée côté fournisseur (portail self-service, échec de paiement définitif).
+export type WebhookEvent =
+  | { kind: "activated"; confirmation: PaymentConfirmation }
+  // currentPeriodEnd resynchronisé sur la valeur réelle côté fournisseur — status reflète le
+  // statut fournisseur au moment de l'événement (peut redevenir "ACTIVE" après une relance de
+  // paiement réussie, par exemple). EXPIRED distingue un abonnement dont les relances de
+  // paiement ont échoué (fin "subie") d'une CANCELED explicite (résiliation volontaire, voir
+  // le cas "canceled" ci-dessous) — les deux existaient dans SubscriptionStatus mais EXPIRED
+  // n'était jusqu'ici jamais écrit nulle part.
+  | {
+      kind: "period_synced";
+      providerSubscriptionId: string;
+      currentPeriodEnd: Date;
+      status: "ACTIVE" | "CANCELED" | "EXPIRED";
+    }
+  | { kind: "canceled"; providerSubscriptionId: string };
+
 export interface PaymentProvider {
   readonly name: string;
 
   createCheckoutSession(input: CheckoutSessionInput): Promise<CheckoutSessionResult>;
 
-  // Vérifie l'authenticité du webhook et renvoie une confirmation de paiement typée si
-  // l'événement en est une — null pour tout autre événement (à ignorer silencieusement) ou
-  // en cas de signature invalide (déjà logué côté implémentation).
-  parseWebhookConfirmation(
-    rawBody: string,
-    signatureHeader: string | null,
-  ): Promise<PaymentConfirmation | null>;
+  // Vérifie l'authenticité du webhook et renvoie un événement de cycle de vie typé s'il s'agit
+  // d'un événement qu'on traite — null pour tout autre événement (à ignorer silencieusement)
+  // ou en cas de signature invalide (déjà logué côté implémentation).
+  parseWebhookEvent(rawBody: string, signatureHeader: string | null): Promise<WebhookEvent | null>;
 
   cancelSubscription(providerSubscriptionId: string): Promise<void>;
 

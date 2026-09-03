@@ -20,10 +20,14 @@ export function MobileNav({ role }: MobileNavProps) {
   const navItems = getNavForRole(role);
   const roleLabel = getRoleLabel(role);
 
-  // Ferme le drawer automatiquement après un changement de route
-  useEffect(() => {
+  // Ferme le drawer automatiquement après un changement de route — ajusté pendant le rendu
+  // (pattern recommandé par React pour "reset state on prop change") plutôt que dans un
+  // effect, qui déclencherait un rendu supplémentaire évitable.
+  const [previousPathname, setPreviousPathname] = useState(pathname);
+  if (pathname !== previousPathname) {
+    setPreviousPathname(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   // Empêche le scroll du fond quand le drawer est ouvert
   useEffect(() => {

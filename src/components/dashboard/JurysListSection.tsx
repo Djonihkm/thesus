@@ -4,6 +4,7 @@ import Link from "next/link";
 import { JuryFunction } from "@prisma/client";
 import { ToggleableListing } from "./ToggleableListing";
 import { EditJuryAccountModal } from "./EditJuryAccountModal";
+import { ResetJuryPasswordButton } from "./ResetJuryPasswordButton";
 import { DeleteJuryAccountButton } from "./DeleteJuryAccountButton";
 
 export interface JurySummary {
@@ -28,6 +29,7 @@ function JuryActions({ jury }: { jury: JurySummary }) {
   return (
     <div className="relative z-10 flex shrink-0 items-center gap-1">
       <EditJuryAccountModal juryId={jury.id} name={jury.name} specialty={jury.specialty ?? ""} />
+      <ResetJuryPasswordButton juryId={jury.id} name={jury.name} />
       <DeleteJuryAccountButton juryId={jury.id} name={jury.name} />
     </div>
   );

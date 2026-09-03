@@ -6,6 +6,7 @@ import { ActionCard } from "@/components/dashboard/ActionCard";
 import { MemoireCard } from "@/components/dashboard/MemoireCard";
 import { MemoireUploadForm } from "@/components/dashboard/MemoireUploadForm";
 import { ThemeStatusBanner } from "@/components/dashboard/ThemeStatusBanner";
+import { InstitutionStatusBanner } from "@/components/dashboard/InstitutionStatusBanner";
 import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 import { Button } from "@/components/ui/Button";
 import { AuditIcon, PlagiarismIcon, QuizIcon, JuryIcon } from "@/components/icons";
@@ -38,10 +39,6 @@ export default async function EtudiantDashboardPage() {
   // Le take(5) ci-dessus ne fausse pas ce test : s'il existe au moins un mémoire, la
   // requête limitée en renvoie forcément au moins un.
   const hasAnyMemoire = memoires.length > 0;
-  // Le dépôt n'est plus conditionné à un thème (voir createMemoireAction) — seule
-  // l'existence d'un rattachement à l'établissement reste requise, condition inchangée et
-  // sans rapport avec le thème.
-  const canDeposit = Boolean(user.institutionId);
 
   return (
     <>
@@ -50,72 +47,60 @@ export default async function EtudiantDashboardPage() {
       <DashboardHeader
         eyebrow="Espace étudiant"
         title={`Bonjour ${user.name}`}
-        description={
-          canDeposit
-            ? "Déposez votre mémoire pour accéder immédiatement à l'audit, l'anti-plagiat, le quiz et la préparation au jury."
-            : "Votre établissement n'est pas encore rattaché à la plateforme."
-        }
+        description="Déposez votre mémoire pour accéder immédiatement à l'audit, l'anti-plagiat, le quiz et la préparation au jury."
       />
 
-      {canDeposit ? (
-        <div className="mt-12">
-          <ThemeStatusBanner
-            currentTheme={themeContext.currentTheme}
-            pendingSelection={themeContext.pendingSelection}
-            pendingClosure={themeContext.pendingClosure}
-          />
-        </div>
-      ) : (
-        <div className="mt-12">
-          <p className="text-sm text-ink-muted">
-            Contactez le support pour rattacher votre compte à un établissement et débloquer le
-            dépôt de mémoire.
-          </p>
-        </div>
-      )}
+      <div className="mt-12 flex flex-col gap-6">
+        {user.affiliatedInstitutionName ? (
+          <InstitutionStatusBanner affiliatedInstitutionName={user.affiliatedInstitutionName} />
+        ) : null}
+        <ThemeStatusBanner
+          currentTheme={themeContext.currentTheme}
+          pendingSelection={themeContext.pendingSelection}
+          pendingClosure={themeContext.pendingClosure}
+        />
+      </div>
 
-      {canDeposit ? (
-        <div className="mt-12">
-          {!hasAnyMemoire ? (
-            <MemoireUploadForm activeThemeTitle={themeContext.currentTheme?.title ?? null} />
-          ) : (
-            <div>
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
-                  Mes derniers mémoires
-                </h2>
-                <Button
-                  href="/dashboard/etudiant/memoires"
-                  variant="outline"
-                  tone="light"
-                  className="text-sm"
-                >
-                  Voir tous mes mémoires
-                </Button>
-              </div>
-              <div className="mt-5 flex flex-col gap-3">
-                {memoires.map((memoire) => (
-                  <MemoireCard
-                    key={memoire.id}
-                    id={memoire.id}
-                    title={memoire.title}
-                    status={memoire.status}
-                    submittedAt={memoire.submittedAt}
-                  />
-                ))}
-              </div>
+      <div className="mt-12">
+        {!hasAnyMemoire ? (
+          <MemoireUploadForm activeThemeTitle={themeContext.currentTheme?.title ?? null} />
+        ) : (
+          <div>
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">
+                Mes derniers mémoires
+              </h2>
               <Button
                 href="/dashboard/etudiant/memoires"
-                tone="light"
                 variant="outline"
-                className="mt-4 text-sm"
+                tone="light"
+                className="text-sm"
               >
-                Déposer un nouveau mémoire
+                Voir tous mes mémoires
               </Button>
             </div>
-          )}
-        </div>
-      ) : null}
+            <div className="mt-5 flex flex-col gap-3">
+              {memoires.map((memoire) => (
+                <MemoireCard
+                  key={memoire.id}
+                  id={memoire.id}
+                  title={memoire.title}
+                  status={memoire.status}
+                  submittedAt={memoire.submittedAt}
+                />
+              ))}
+            </div>
+            <Button
+              href="/dashboard/etudiant/memoires"
+              tone="light"
+              variant="outline"
+              className="mt-4 text-sm"
+            >
+              Déposer un nouveau mémoire
+            </Button>
+          </div>
+        )}
+      </div>
 
       <div className="mt-12">
         <h2 className="text-lg font-medium tracking-[-0.01em] text-ink">

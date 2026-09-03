@@ -1,5 +1,5 @@
 // src/lib/ai-chat.ts
-import { getAiClient, getAiModel } from "@/lib/ai-client";
+import { generateAiContent, getAiModel } from "@/lib/ai-client";
 
 const MAX_DOCUMENT_CONTEXT_CHARACTERS = 12_000;
 const DOCUMENT_HEAD_CHARACTERS = 4_000;
@@ -31,6 +31,14 @@ function buildDocumentContext(editableContent: string | null): string {
   return `${head}\n\n[...contenu intermédiaire omis pour rester dans la limite de contexte...]\n\n${tail}`;
 }
 
+// Le marqueur de troncature dans buildDocumentContext n'est vu que par le modèle — rien ne le
+// signale à l'étudiant côté UI, qui peut recevoir une réponse incohérente sur un chapitre du
+// milieu sans comprendre pourquoi. Exposé ici pour que DocumentEditor.tsx puisse afficher un
+// avertissement visible dans le panneau de chat quand c'est le cas.
+export function isDocumentContextTruncated(editableContent: string | null): boolean {
+  return stripHtml(editableContent ?? "").length > MAX_DOCUMENT_CONTEXT_CHARACTERS;
+}
+
 export interface ChatTurn {
   role: "USER" | "ASSISTANT";
   content: string;
@@ -43,7 +51,6 @@ export async function generateChatReply(input: {
   // inclus = le message que l'étudiant vient d'envoyer.
   history: ChatTurn[];
 }): Promise<string> {
-  const client = getAiClient();
   const documentContext = buildDocumentContext(input.editableContent);
 
   const systemInstruction =
@@ -61,7 +68,7 @@ export async function generateChatReply(input: {
     parts: [{ text: turn.content }],
   }));
 
-  const response = await client.models.generateContent({
+  const response = await generateAiContent({
     model: getAiModel(),
     contents,
     config: { systemInstruction },

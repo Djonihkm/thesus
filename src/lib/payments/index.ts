@@ -17,6 +17,7 @@ export type {
   PaymentConfirmation,
   PortalSessionInput,
   PortalSessionResult,
+  WebhookEvent,
   SubscriptionOwnerType,
   BillingCycle,
 } from "./provider";

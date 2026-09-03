@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
+import { logError } from "@/lib/log-error";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -49,7 +50,7 @@ export function PdfViewer({ fileUrl }: PdfViewerProps) {
         if (!cancelled) setStatus("ready");
       } catch (error) {
         if (!cancelled) {
-          console.error("Erreur de chargement du PDF:", error);
+          logError("PdfViewer", error, { fileUrl });
           setStatus("error");
         }
       }

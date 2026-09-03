@@ -29,6 +29,7 @@ export default async function EtablissementJuryDetailPage({
     select: {
       id: true,
       name: true,
+      email: true,
       specialty: true,
       juryFunction: true,
       institutionId: true,
@@ -55,7 +56,7 @@ export default async function EtablissementJuryDetailPage({
       <DashboardHeader
         eyebrow="Jurys"
         title={jury.name}
-        description={jury.specialty ?? "Spécialité non renseignée"}
+        description={`${jury.email} · ${jury.specialty ?? "Spécialité non renseignée"}`}
       />
 
       <h2 className="mt-10 text-lg font-medium tracking-[-0.01em] text-ink">

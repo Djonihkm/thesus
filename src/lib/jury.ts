@@ -1,6 +1,6 @@
 // src/lib/jury.ts
 import { Type, type Schema } from "@google/genai";
-import { getAiClient, getAiModel } from "@/lib/ai-client";
+import { generateAiContent, getAiModel } from "@/lib/ai-client";
 
 const MAX_INPUT_CHARACTERS = 120_000;
 const JURY_CATEGORIES = [
@@ -50,10 +50,9 @@ const JURY_RESPONSE_SCHEMA: Schema = {
 export async function generateJurySimulation(
   extractedText: string,
 ): Promise<GeneratedJuryQuestion[]> {
-  const client = getAiClient();
   const text = extractedText.slice(0, MAX_INPUT_CHARACTERS);
 
-  const response = await client.models.generateContent({
+  const response = await generateAiContent({
     model: getAiModel(),
     contents: `Voici le contenu extrait du mémoire pour lequel préparer les questions de soutenance :\n\n${text}`,
     config: {
@@ -73,6 +72,12 @@ export async function generateJurySimulation(
     throw new Error("Le modèle n'a pas retourné de questions de jury structurées.");
   }
 
-  const parsed = JSON.parse(responseText) as { questions: GeneratedJuryQuestion[] };
-  return parsed.questions;
+  try {
+    const parsed = JSON.parse(responseText) as { questions: GeneratedJuryQuestion[] };
+    return parsed.questions;
+  } catch {
+    // Ne jamais laisser une erreur de parsing JSON brute (illisible) remonter jusqu'à
+    // l'étudiant — le schéma imposé au modèle rend ce cas rare mais pas impossible.
+    throw new Error("Les questions générées étaient mal formées. Réessayez dans un instant.");
+  }
 }

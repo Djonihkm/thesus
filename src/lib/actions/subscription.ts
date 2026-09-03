@@ -10,6 +10,7 @@ import {
   type InstitutionPlanCode,
   type PlanDefinition,
 } from "@/lib/pricing-config";
+import { logError } from "@/lib/log-error";
 
 export type CreateCheckoutState = { error?: string; redirectUrl?: string };
 
@@ -68,6 +69,29 @@ export async function createCheckoutSessionAction(
     return { error: "Plan introuvable en base — contactez le support." };
   }
 
+  // Un changement de plan (ou de cycle de facturation) sur un abonnement déjà payant créait
+  // jusqu'ici une SECONDE session Checkout sans jamais annuler la première côté fournisseur —
+  // double facturation possible, et la ligne Subscription en base écrasait silencieusement la
+  // référence à l'ancien abonnement Stripe toujours actif. On annule l'ancien avant de créer
+  // le nouveau. Pas de proratisation ici (squelette de test) : le nouvel abonnement redémarre
+  // une période pleine plutôt que de créditer le temps restant de l'ancien — acceptable pour
+  // valider la logique, à traiter proprement avec une vraie implémentation FedaPay.
+  const existingSubscription =
+    ownerType === "USER"
+      ? await prisma.subscription.findUnique({ where: { userId: ownerId } })
+      : await prisma.subscription.findUnique({ where: { institutionId: ownerId } });
+
+  if (existingSubscription?.providerSubscriptionId && existingSubscription.status === "ACTIVE") {
+    try {
+      await getPaymentProvider().cancelSubscription(existingSubscription.providerSubscriptionId);
+    } catch (error) {
+      // Ne bloque pas le changement de plan si l'ancien abonnement est déjà dans un état que
+      // Stripe refuse d'annuler à nouveau (ex. déjà annulé côté fournisseur, webhook pas
+      // encore traité) — la nouvelle session Checkout doit pouvoir se créer quand même.
+      logError("actions/subscription:createCheckoutSessionAction:cancelPrevious", error, { ownerId });
+    }
+  }
+
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
   const dashboardPath = user.role === "STUDENT" ? "/dashboard/etudiant" : "/dashboard/etablissement";
 
@@ -86,7 +110,7 @@ export async function createCheckoutSessionAction(
     });
     return { redirectUrl: result.redirectUrl };
   } catch (error) {
-    console.error("Échec de la création de la session de paiement :", error);
+    logError("actions/subscription:createCheckoutSessionAction", error, { ownerId, planCode });
     return {
       error:
         error instanceof Error ? error.message : "Le service de paiement est momentanément indisponible.",
@@ -130,7 +154,7 @@ export async function createPortalSessionAction(): Promise<CreateCheckoutState> 
     });
     return { redirectUrl: result.redirectUrl };
   } catch (error) {
-    console.error("Échec de la création de la session du portail de gestion :", error);
+    logError("actions/subscription:createPortalSessionAction", error, { userId: user.id });
     return {
       error:
         error instanceof Error ? error.message : "Le service de paiement est momentanément indisponible.",

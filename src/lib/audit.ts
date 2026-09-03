@@ -1,6 +1,6 @@
 // src/lib/audit.ts
 import { Type, type Schema } from "@google/genai";
-import { getAiClient, getAiModel } from "@/lib/ai-client";
+import { generateAiContent, getAiModel } from "@/lib/ai-client";
 
 const MAX_INPUT_CHARACTERS = 120_000;
 
@@ -70,10 +70,9 @@ const AUDIT_RESPONSE_SCHEMA: Schema = {
 };
 
 export async function generateAuditReport(extractedText: string): Promise<AuditResult> {
-  const client = getAiClient();
   const text = extractedText.slice(0, MAX_INPUT_CHARACTERS);
 
-  const response = await client.models.generateContent({
+  const response = await generateAiContent({
     model: getAiModel(),
     contents: `Voici le contenu extrait du mémoire à auditer :\n\n${text}`,
     config: {
@@ -93,5 +92,30 @@ export async function generateAuditReport(extractedText: string): Promise<AuditR
     throw new Error("Le modèle n'a pas retourné de rapport d'audit structuré.");
   }
 
-  return JSON.parse(responseText) as AuditResult;
+  let parsed: AuditResult;
+  try {
+    parsed = JSON.parse(responseText) as AuditResult;
+  } catch {
+    // Ne jamais laisser une erreur de parsing JSON brute (illisible) remonter jusqu'à
+    // l'étudiant — le schéma imposé au modèle rend ce cas rare mais pas impossible.
+    throw new Error("Le rapport d'audit généré était mal formé. Réessayez dans un instant.");
+  }
+
+  // Le schéma demande une note "sur 20" mais ne garantit aucune borne réelle — un score
+  // halluciné hors plage s'afficherait tel quel dans les jauges de la page progression sans
+  // ce clamp.
+  return {
+    ...parsed,
+    score: clampScore(parsed.score),
+    structureScore: clampScore(parsed.structureScore),
+    coherenceScore: clampScore(parsed.coherenceScore),
+    writingQualityScore: clampScore(parsed.writingQualityScore),
+  };
+}
+
+const MAX_SCORE = 20;
+
+function clampScore(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(MAX_SCORE, Math.max(0, value));
 }

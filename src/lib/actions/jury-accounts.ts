@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isValidEmail } from "@/lib/validation";
 import { generateTemporaryPassword } from "@/lib/password-generator";
-import { sendJuryAccountCreatedEmail } from "@/lib/email";
+import { sendJuryAccountCreatedEmail, sendJuryPasswordResetEmail } from "@/lib/email";
 import { getInstitutionJuryWorkload } from "@/lib/jury-workload";
 import { canAddJury } from "@/lib/subscription";
 
@@ -125,10 +125,11 @@ export type UpdateJuryAccountActionState = {
   success?: boolean;
 };
 
-// Établissement : modifie le nom et la spécialité d'un compte jury déjà créé. L'email et
-// le mot de passe ne se changent pas ici (l'email est l'identifiant de connexion, un
-// changement d'email mériterait sa propre vérification — hors périmètre de cette
-// itération ; le mot de passe reste du ressort du jury lui-même une fois connecté).
+// Établissement : modifie le nom et la spécialité d'un compte jury déjà créé. L'email ne se
+// change pas ici (identifiant de connexion, un changement mériterait sa propre vérification —
+// hors périmètre de cette itération). Le mot de passe se change normalement une fois connecté
+// (le jury) ; pour le cas où il n'a jamais pu se connecter (email d'identifiants jamais reçu,
+// mot de passe temporaire perdu), voir resetJuryPasswordAction ci-dessous.
 export async function updateJuryAccountAction(
   juryId: string,
   input: { name: string; specialty: string },
@@ -152,6 +153,38 @@ export async function updateJuryAccountAction(
   });
 
   revalidateJuryPaths(juryId);
+  return { success: true };
+}
+
+export type ResetJuryPasswordActionState = {
+  error?: string;
+  success?: boolean;
+};
+
+// Établissement : génère un nouveau mot de passe temporaire pour un jury et le lui envoie par
+// email — seul recours jusqu'ici pour un jury qui n'a jamais reçu (ou a perdu) ses identifiants
+// initiaux était de supprimer le compte, elle-même bloquée dès qu'une assignation existe.
+export async function resetJuryPasswordAction(juryId: string): Promise<ResetJuryPasswordActionState> {
+  const result = await requireInstitutionJury(juryId);
+  if ("error" in result) return { error: result.error };
+
+  const temporaryPassword = generateTemporaryPassword();
+  const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+
+  await prisma.user.update({
+    where: { id: juryId },
+    data: { passwordHash, mustChangePassword: true },
+  });
+
+  try {
+    await sendJuryPasswordResetEmail(result.jury.email, result.jury.name, temporaryPassword);
+  } catch {
+    return {
+      error:
+        "Le mot de passe a été réinitialisé mais l'email contenant le nouveau mot de passe n'a pas pu être envoyé. Contactez le support pour le transmettre au jury.",
+    };
+  }
+
   return { success: true };
 }
 

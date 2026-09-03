@@ -10,6 +10,7 @@ import {
   type ExternalCandidate,
   type ExternalPlagiarismSource,
 } from "@/lib/plagiarism-external";
+import { logError } from "@/lib/log-error";
 
 const MAX_EMBEDDING_CHARACTERS = 60_000;
 const EMBEDDING_CHUNK_SIZE = 800;
@@ -59,6 +60,23 @@ const SEMANTIC_MATCH_THRESHOLD_PERCENT = 20;
 const MAX_MATCHES = 5;
 const MAX_PASSAGES_PER_MATCH = 8;
 
+// Choix assumé : la comparaison reste inter-établissements (c'est la valeur de l'outil — une
+// copie provenant d'un autre établissement doit être détectable), mais l'extrait affiché du
+// mémoire TIERS comparé est volontairement borné. Assez long pour juger visuellement d'une
+// similarité, pas assez pour reconstituer un passage entier du travail de quelqu'un d'autre
+// qui n'a jamais consenti à ce que son texte soit lu par un tiers via ce rapport. Le texte de
+// l'étudiant qui consulte SON PROPRE rapport (studentExcerpt) n'est lui jamais tronqué —
+// aucune préoccupation de confidentialité sur son propre contenu.
+const MAX_THIRD_PARTY_EXCERPT_CHARS = 240;
+
+function truncateThirdPartyExcerpt(text: string): string {
+  if (text.length <= MAX_THIRD_PARTY_EXCERPT_CHARS) return text;
+  const cut = text.slice(0, MAX_THIRD_PARTY_EXCERPT_CHARS);
+  const lastSpace = cut.lastIndexOf(" ");
+  const safeCut = lastSpace > MAX_THIRD_PARTY_EXCERPT_CHARS * 0.6 ? cut.slice(0, lastSpace) : cut;
+  return `${safeCut.trimEnd()}…`;
+}
+
 // Rescale le cosinus brut [SEMANTIC_FLOOR, 1] vers [0, 100] — un cosinus au niveau du bruit de
 // fond calibré (ou en dessous) donne 0, un cosinus de 1 (documents identiques) donne 100.
 function normalizeSemanticScore(rawCosine: number): number {
@@ -76,6 +94,10 @@ export interface PlagiarismPassage {
   studentExcerpt: string;
   matchedStart: number;
   matchedEnd: number;
+  // Tronqué à MAX_THIRD_PARTY_EXCERPT_CHARS (voir truncateThirdPartyExcerpt) — matchedStart/
+  // matchedEnd restent les bornes réelles du chunk comparé, mais le texte affiché ne couvre
+  // pas forcément toute cette plage : exposition volontairement réduite du contenu d'un
+  // mémoire tiers.
   matchedExcerpt: string;
 }
 
@@ -322,7 +344,7 @@ function findSimilarPassages(
         studentExcerpt: studentText.slice(s.start, s.end),
         matchedStart: c.start,
         matchedEnd: c.end,
-        matchedExcerpt: candidateText.slice(c.start, c.end),
+        matchedExcerpt: truncateThirdPartyExcerpt(candidateText.slice(c.start, c.end)),
       });
     }
   }
@@ -500,7 +522,7 @@ export async function runPlagiarismCheck(
   try {
     externalMatches = await computeExternalMatches(extractedText);
   } catch (error) {
-    console.error("Recherche de sources externes échouée :", error);
+    logError("plagiarism:computeExternalMatches", error, { memoireId });
   }
 
   const allMatches = [...topMatches, ...externalMatches];

@@ -2,11 +2,19 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { Flag } from "lucide-react";
 import type { PlagiarismPassage } from "@/lib/plagiarism";
 
 const VISIBLE_BY_DEFAULT = 3;
 
-export function PlagiarismPassages({ passages }: { passages: PlagiarismPassage[] }) {
+export function PlagiarismPassages({
+  passages,
+  memoireId,
+}: {
+  passages: PlagiarismPassage[];
+  memoireId: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   if (passages.length === 0) return null;
 
@@ -32,6 +40,14 @@ export function PlagiarismPassages({ passages }: { passages: PlagiarismPassage[]
             </span>
             <span className="text-xs font-medium text-ink-muted">{passage.score}%</span>
           </div>
+
+          <Link
+            href={`/dashboard/etudiant/memoires/${memoireId}/document?flagExcerpt=${encodeURIComponent(passage.studentExcerpt)}`}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-flag underline decoration-dotted hover:opacity-80"
+          >
+            <Flag size={11} />
+            Marquer dans le document
+          </Link>
 
           <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
             <div>

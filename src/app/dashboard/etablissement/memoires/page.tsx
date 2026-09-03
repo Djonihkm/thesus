@@ -4,6 +4,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { MemoireStatusBadge } from "@/components/dashboard/MemoireStatusBadge";
 import { AssignJuryControl } from "@/components/dashboard/AssignJuryControl";
 import { suggestJurorsForCategory } from "@/lib/jury-assignment";
+import { getInstitutionJuryWorkload } from "@/lib/jury-workload";
 import { getInstitutionPlan } from "@/lib/subscription";
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
@@ -27,7 +28,7 @@ export default async function EtablissementMemoiresPage() {
 
   const institutionId = user.institutionId;
 
-  const [memoires, jurors, { limits }] = await Promise.all([
+  const [memoires, jurors, { limits }, jurorWorkload] = await Promise.all([
     prisma.memoire.findMany({
       where: { institutionId },
       orderBy: { submittedAt: "desc" },
@@ -46,6 +47,7 @@ export default async function EtablissementMemoiresPage() {
       select: { id: true, name: true, specialty: true },
     }),
     getInstitutionPlan(institutionId),
+    getInstitutionJuryWorkload(institutionId),
   ]);
 
   return (
@@ -63,10 +65,13 @@ export default async function EtablissementMemoiresPage() {
           {memoires.map((memoire) => {
             const currentAssignment = memoire.assignments[0];
             const isValidated = currentAssignment?.status === "VALIDATED";
+            // Calculée aussi bien pour un premier assignement que pour une réassignation —
+            // seule condition : un thème validé (sans thème validé, il n'y a rien de
+            // pertinent à assigner, qu'il y ait déjà un jury ou non).
             const suggestions =
-              !isValidated && memoire.theme?.status === "VALIDATED"
+              memoire.theme?.status === "VALIDATED"
                 ? limits.autoJuryAssignment
-                  ? suggestJurorsForCategory(memoire.theme.category, jurors)
+                  ? suggestJurorsForCategory(memoire.theme.category, jurors, jurorWorkload)
                   : jurors.map((juror) => ({ ...juror, score: 0 }))
                 : [];
 
@@ -99,9 +104,14 @@ export default async function EtablissementMemoiresPage() {
 
                 <div className="shrink-0">
                   {isValidated ? (
-                    <span className="text-sm font-medium text-ink">
-                      Assigné à {currentAssignment.jury.name}
-                    </span>
+                    <AssignJuryControl
+                      memoireId={memoire.id}
+                      jurors={suggestions}
+                      currentAssignment={{
+                        juryId: currentAssignment.juryId,
+                        juryName: currentAssignment.jury.name,
+                      }}
+                    />
                   ) : memoire.theme?.status === "VALIDATED" ? (
                     <AssignJuryControl memoireId={memoire.id} jurors={suggestions} />
                   ) : memoire.theme ? (

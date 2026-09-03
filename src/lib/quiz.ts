@@ -1,6 +1,6 @@
 // src/lib/quiz.ts
 import { Type, type Schema } from "@google/genai";
-import { getAiClient, getAiModel } from "@/lib/ai-client";
+import { generateAiContent, getAiModel } from "@/lib/ai-client";
 
 const MAX_INPUT_CHARACTERS = 120_000;
 const QUESTION_TYPES = ["QCU", "VRAI_FAUX", "TEXTE_TROU"] as const;
@@ -71,10 +71,9 @@ export async function generateQuiz(
   extractedText: string,
   maxQuestions: number | null = null,
 ): Promise<GeneratedQuizQuestion[]> {
-  const client = getAiClient();
   const text = extractedText.slice(0, MAX_INPUT_CHARACTERS);
 
-  const response = await client.models.generateContent({
+  const response = await generateAiContent({
     model: getAiModel(),
     contents: `Voici le contenu extrait du mémoire à partir duquel générer le quiz :\n\n${text}`,
     config: {
@@ -93,7 +92,14 @@ export async function generateQuiz(
     throw new Error("Le modèle n'a pas retourné de quiz structuré.");
   }
 
-  const parsed = JSON.parse(responseText) as { questions: GeneratedQuizQuestion[] };
+  let parsed: { questions: GeneratedQuizQuestion[] };
+  try {
+    parsed = JSON.parse(responseText) as { questions: GeneratedQuizQuestion[] };
+  } catch {
+    // Ne jamais laisser une erreur de parsing JSON brute (illisible) remonter jusqu'à
+    // l'étudiant — le schéma imposé au modèle rend ce cas rare mais pas impossible.
+    throw new Error("Le quiz généré était mal formé. Réessayez dans un instant.");
+  }
   return parsed.questions.map((question) => ({
     ...question,
     choices: question.choices && question.choices.length > 0 ? question.choices : null,
