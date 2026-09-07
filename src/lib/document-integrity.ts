@@ -1,19 +1,19 @@
 // src/lib/document-integrity.ts
 //
 // Filet DÉTECTIF (pas préventif) sur l'intégrité du texte du document collaboratif — voir le
-// commentaire dans src/app/api/y-sweet-auth/route.ts : Y-Sweet n'a que deux niveaux
-// d'autorisation ("full" / "read-only"), donc le mode "annotation seule" du jury (surlignage/
-// soulignage, jamais d'édition du texte) n'est appliqué que côté client (annotate-only-plugin.ts).
-// Un jury techniquement outillé pourrait en théorie contourner cette barrière en parlant
-// directement au WebSocket Yjs. Ce module ne l'EMPÊCHE pas — Y-Sweet ne nous en donne pas les
-// moyens — il rend la dérive VISIBLE : on compare le texte réellement synchronisé dans le
-// document Yjs live au dernier checkpoint enregistré par l'étudiant (Memoire.editableContent,
-// jamais modifiable que via mode="edit"). Un écart signale soit une triche technique, soit
-// (cas bien plus probable) une édition étudiante en cours non encore enregistrée — ce n'est
-// donc qu'un signal à investiguer manuellement dans les logs serveur, jamais une alerte fiable
-// à 100%, et jamais bloquant pour l'affichage.
+// commentaire dans src/app/api/party-auth/route.ts : PartyKit n'a que lecture/écriture
+// complète par room, donc le mode "annotation seule" du jury (surlignage/soulignage, jamais
+// d'édition du texte) n'est appliqué que côté client (annotate-only-plugin.ts). Un jury
+// techniquement outillé pourrait en théorie contourner cette barrière en parlant directement
+// au WebSocket Yjs. Ce module ne l'EMPÊCHE pas il rend la dérive VISIBLE : on compare le
+// texte réellement synchronisé dans le document Yjs live (lu via onRequest sur
+// party/document.ts, protégé par PARTYKIT_INTERNAL_SECRET) au dernier checkpoint enregistré
+// par l'étudiant (Memoire.editableContent, jamais modifiable que via mode="edit"). Un écart
+// signale soit une triche technique, soit (cas bien plus probable) une édition étudiante en
+// cours non encore enregistrée — ce n'est donc qu'un signal à investiguer manuellement dans
+// les logs serveur, jamais une alerte fiable à 100%, et jamais bloquant pour l'affichage.
 import * as Y from "yjs";
-import { getDocumentManager } from "@/lib/y-sweet";
+import { getPartyKitHost } from "@/lib/partykit";
 import { logError } from "@/lib/log-error";
 
 function stripHtmlToPlainText(html: string): string {
@@ -47,7 +47,7 @@ function normalizeForComparison(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-// docId : voir documentRoomId (src/lib/y-sweet.ts). checkpointHtml : Memoire.editableContent
+// docId : voir documentRoomId (src/lib/partykit.ts). checkpointHtml : Memoire.editableContent
 // au moment de l'appel. context : étiquette libre pour distinguer la source dans les logs
 // (ex. "jury_page_load", "student_page_load").
 export async function logDocumentIntegrityDrift(
@@ -59,7 +59,20 @@ export async function logDocumentIntegrityDrift(
   try {
     if (!checkpointHtml) return;
 
-    const update = await getDocumentManager().getDocAsUpdate(docId);
+    const secret = process.env.PARTYKIT_INTERNAL_SECRET;
+    if (!secret) return;
+
+    const protocol = getPartyKitHost().startsWith("127.0.0.1") ? "http" : "https";
+    const response = await fetch(`${protocol}://${getPartyKitHost()}/parties/main/${docId}`, {
+      headers: { "x-internal-secret": secret },
+    });
+    // Pas de distinction "room jamais ouverte" côté PartyKit : onRequest (party/document.ts)
+    // renvoie toujours 200 avec un doc vide dans ce cas (unstable_getYDoc en crée un), donc
+    // toute réponse non-ok ici signale une vraie erreur (mauvaise config d'hôte, secret
+    // invalide, etc.), jamais un état attendu.
+    if (!response.ok) throw new Error(`party onRequest a répondu ${response.status}`);
+
+    const update = new Uint8Array(await response.arrayBuffer());
     const liveDoc = new Y.Doc();
     Y.applyUpdate(liveDoc, update);
     const liveText = normalizeForComparison(extractPlainTextFromFragment(liveDoc.getXmlFragment("default")));

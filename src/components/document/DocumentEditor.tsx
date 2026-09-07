@@ -1,14 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import {
-  YDocProvider,
-  useYDoc,
-  useAwareness,
-  useConnectionStatus,
-  usePresence,
-  usePresenceSetter,
-} from "@y-sweet/react";
+import useYProvider from "y-partykit/react";
 import { useEditor, useEditorState, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
@@ -55,11 +48,16 @@ import { PlagiarismFlag } from "@/lib/tiptap/plagiarism-flag-mark";
 import { AnnotateOnly } from "@/lib/tiptap/annotate-only-plugin";
 import { PageBreak } from "@/lib/tiptap/page-break";
 import { ResizableImage } from "@/lib/tiptap/resizable-image";
-import { YSweetCollaboration } from "@/lib/tiptap/y-sweet-collaboration";
+import { CollaborativeEditing } from "@/lib/tiptap/collaborative-editing";
+import {
+  useConnectionStatus,
+  usePresence,
+  usePresenceSetter,
+} from "@/lib/tiptap/use-collaboration-provider";
 import { DocumentCommentMark } from "@/lib/tiptap/document-comment-mark";
 import { encodeCommentAnchor, decodeCommentAnchor } from "@/lib/tiptap/comment-anchor";
 import { findTextRangeInDoc } from "@/lib/tiptap/find-text-range";
-import { documentRoomId } from "@/lib/y-sweet";
+import { documentRoomId, getPartyKitHost } from "@/lib/partykit";
 import {
   saveDocumentContentAction,
   regenerateDocumentContentAction,
@@ -126,6 +124,10 @@ interface DocumentEditorProps {
   flagExcerptOnLoad?: string;
 }
 
+type PanelTab = "comments" | "chat";
+
+const PANEL_COLLAPSED_STORAGE_KEY = "thesus-document-panel-collapsed";
+
 export function DocumentEditor({
   memoireId,
   documentRoomVersion,
@@ -137,51 +139,35 @@ export function DocumentEditor({
   documentContextTruncated = false,
   flagExcerptOnLoad,
 }: DocumentEditorProps) {
-  const docId = documentRoomId(memoireId, documentRoomVersion);
-
-  return (
-    <YDocProvider docId={docId} authEndpoint="/api/y-sweet-auth" showDebuggerLink={false}>
-      <EditorRoom
-        memoireId={memoireId}
-        userName={userName}
-        mode={mode}
-        initialContent={initialContent}
-        canRegenerate={canRegenerate}
-        initialChatMessages={initialChatMessages}
-        documentContextTruncated={documentContextTruncated}
-        flagExcerptOnLoad={flagExcerptOnLoad}
-      />
-    </YDocProvider>
+  const docId = useMemo(
+    () => documentRoomId(memoireId, documentRoomVersion),
+    [memoireId, documentRoomVersion],
   );
-}
 
-type PanelTab = "comments" | "chat";
+  // Récupère le jeton signé par /api/party-auth (session, appartenance du mémoire,
+  // canAccessMemoireDocument — voir ce fichier) avant que le provider n'ouvre la connexion
+  // WebSocket : jamais de room accessible par simple connaissance de son ID, voir
+  // party/document.ts:onBeforeConnect qui revérifie ce jeton côté serveur.
+  const fetchPartyToken = useCallback(async () => {
+    const response = await fetch("/api/party-auth", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ docId }),
+    });
+    if (!response.ok) throw new Error("Échec de l'authentification au document.");
+    const { token } = (await response.json()) as { token: string };
+    return { token };
+  }, [docId]);
 
-const PANEL_COLLAPSED_STORAGE_KEY = "thesus-document-panel-collapsed";
+  const provider = useYProvider({
+    host: getPartyKitHost(),
+    room: docId,
+    options: { params: fetchPartyToken },
+  });
 
-function EditorRoom({
-  memoireId,
-  userName,
-  mode,
-  initialContent,
-  canRegenerate,
-  initialChatMessages,
-  documentContextTruncated,
-  flagExcerptOnLoad,
-}: {
-  memoireId: string;
-  userName: string;
-  mode: DocumentEditorMode;
-  initialContent: string;
-  canRegenerate: boolean;
-  initialChatMessages: ChatMessageView[];
-  documentContextTruncated: boolean;
-  flagExcerptOnLoad?: string;
-}) {
-  const ydoc = useYDoc();
-  const awareness = useAwareness();
-  const connectionStatus = useConnectionStatus();
-  const fragment = useMemo(() => ydoc.getXmlFragment("default"), [ydoc]);
+  const awareness = provider.awareness;
+  const connectionStatus = useConnectionStatus(provider);
+  const fragment = useMemo(() => provider.doc.getXmlFragment("default"), [provider]);
 
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -236,7 +222,7 @@ function EditorRoom({
   const editor = useEditor(
     {
       extensions: [
-        YSweetCollaboration.configure({ fragment, awareness }),
+        CollaborativeEditing.configure({ fragment, awareness }),
         StarterKit.configure({ undoRedo: false }),
         Highlight,
         Underline,
@@ -306,11 +292,11 @@ function EditorRoom({
 
   // Présence : nom réel depuis la session NextAuth (passé en prop depuis la page serveur),
   // plus besoin d'un resolveUsers séparé comme avec Liveblocks.
-  const setPresence = usePresenceSetter<{ name: string }>();
+  const setPresence = usePresenceSetter<{ name: string }>(awareness);
   useEffect(() => {
     setPresence({ name: userName });
   }, [setPresence, userName]);
-  const others = usePresence<{ name: string }>();
+  const others = usePresence<{ name: string }>(awareness);
 
   useEffect(() => {
     let cancelled = false;

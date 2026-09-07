@@ -1,8 +1,8 @@
-// src/app/api/y-sweet-auth/route.ts
+// src/app/api/party-auth/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getDocumentManager, documentRoomId } from "@/lib/y-sweet";
+import { documentRoomId, issuePartyToken } from "@/lib/partykit";
 import { canAccessMemoireDocument } from "@/lib/document-access";
 import { logError } from "@/lib/log-error";
 
@@ -39,20 +39,17 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    // Y-Sweet n'a pas de permission plus fine que lecture/écriture complète par document
-    // (comme Liveblocks avant lui) : la restriction "le jury ne peut que surligner/commenter,
-    // pas modifier le texte" est appliquée côté éditeur (plugin ProseMirror qui rejette les
-    // transactions de contenu, voir annotate-only-plugin.ts), pas au niveau de ce token. Un
+    // PartyKit n'a pas de permission plus fine que lecture/écriture complète par room (comme
+    // Y-Sweet avant lui) : la restriction "le jury ne peut que surligner/commenter, pas
+    // modifier le texte" est appliquée côté éditeur (plugin ProseMirror qui rejette les
+    // transactions de contenu, voir annotate-only-plugin.ts), pas au niveau de ce jeton. Un
     // contournement technique de cette barrière client reste possible — voir le filet détectif
     // (pas préventif) dans document-integrity.ts, qui journalise toute dérive de texte détectée
     // par rapport au dernier checkpoint étudiant.
-    const clientToken = await getDocumentManager().getOrCreateDocAndToken(docId, {
-      authorization: "full",
-      userId: user.id,
-    });
-    return NextResponse.json(clientToken);
+    const token = await issuePartyToken(docId, user.id);
+    return NextResponse.json({ token });
   } catch (error) {
-    logError("y-sweet-auth", error);
+    logError("party-auth", error);
     return NextResponse.json(
       { error: "Le service de collaboration est momentanément indisponible." },
       { status: 503 },

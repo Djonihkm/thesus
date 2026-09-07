@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { Breadcrumb } from "@/components/dashboard/Breadcrumb";
 import { DocumentEditor } from "@/components/document/DocumentEditor";
-import { documentRoomId } from "@/lib/y-sweet";
+import { documentRoomId } from "@/lib/partykit";
 import { logDocumentIntegrityDrift } from "@/lib/document-integrity";
 import { isDocumentContextTruncated } from "@/lib/ai-chat";
 

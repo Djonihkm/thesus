@@ -1,0 +1,6 @@
+{
+  "name": "thesus-document",
+  "main": "party/document.ts",
+  "compatibilityDate": "2026-09-07",
+  "persist": ".partykit-data"
+}

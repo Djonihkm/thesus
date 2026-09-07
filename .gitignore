@@ -17,8 +17,9 @@
 /.next/
 /out/
 
-# y-sweet (local dev collaboration server persistence, see package.json "dev" script)
-/.y-sweet-data/
+# partykit (local dev collaboration server persistence + build cache, see partykit.json)
+/.partykit-data/
+/.partykit/
 
 # production
 /build

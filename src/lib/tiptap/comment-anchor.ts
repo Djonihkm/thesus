@@ -4,7 +4,7 @@
 // en positions *relatives* Yjs (qui restent valides après des éditions concurrentes ailleurs
 // dans le document) pour les stocker durablement en base sur DocumentComment, et inversement
 // pour retrouver l'emplacement exact au rendu. Nécessite le binding y-prosemirror actif sur
-// l'éditeur (posé par YSweetCollaboration, voir y-sweet-collaboration.ts).
+// l'éditeur (posé par CollaborativeEditing, voir collaborative-editing.ts).
 import type { Editor } from "@tiptap/core";
 import * as Y from "yjs";
 import { ySyncPluginKey, absolutePositionToRelativePosition, relativePositionToAbsolutePosition } from "y-prosemirror";

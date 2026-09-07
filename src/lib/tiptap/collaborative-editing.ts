@@ -1,10 +1,11 @@
-// src/lib/tiptap/y-sweet-collaboration.ts
+// src/lib/tiptap/collaborative-editing.ts
 //
-// Remplace @liveblocks/react-tiptap's useLiveblocksExtension : Y-Sweet est un backend Yjs
-// standard (contrairement à Liveblocks, qui packageait sa propre intégration), donc on
-// câble nous-mêmes les plugins ProseMirror de y-prosemirror sur le Y.Doc fourni par le
-// provider Y-Sweet — awareness (curseurs/présence) comprise, nativement disponible côté
-// protocole Yjs quel que soit le backend.
+// Câble les plugins ProseMirror de y-prosemirror sur le Y.Doc fourni par le provider de
+// collaboration temps réel (PartyKit, anciennement Y-Sweet — voir DocumentEditor.tsx) —
+// awareness (curseurs/présence) comprise, nativement disponible côté protocole Yjs quel
+// que soit le transport. Générique par construction (ne dépend que de Y.XmlFragment/
+// Awareness, jamais d'un type propre à un backend), donc jamais eu besoin de changer lors
+// du passage Liveblocks → Y-Sweet → PartyKit.
 //
 // y-prosemirror est déjà une dépendance du projet (utilisée par annotate-only-plugin.ts,
 // qui importe ySyncPluginKey pour reconnaître les transactions de synchronisation Yjs) :
@@ -16,13 +17,13 @@ import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin, undoCommand, redoCommand } from "y-prosemirror";
 
-export interface YSweetCollaborationOptions {
+export interface CollaborativeEditingOptions {
   fragment: Y.XmlFragment | null;
   awareness: Awareness | null;
 }
 
-export const YSweetCollaboration = Extension.create<YSweetCollaborationOptions>({
-  name: "ySweetCollaboration",
+export const CollaborativeEditing = Extension.create<CollaborativeEditingOptions>({
+  name: "collaborativeEditing",
 
   addOptions() {
     return { fragment: null, awareness: null };
